@@ -6,7 +6,7 @@ import static org.springframework.http.HttpMethod.*;
 import br.edu.ifsul.cstsi.tads_ricardo_bibli.TadsRicardoBibliApplication;
 import br.edu.ifsul.cstsi.tads_ricardo_bibli.api.autenticacao.AutenticacaoService;
 import br.edu.ifsul.cstsi.tads_ricardo_bibli.api.infra.security.TokenService;
-import br.edu.ifsul.cstsi.tads_ricardo_bibli.api.support.MariaDbIntegrationTest;
+import br.edu.ifsul.cstsi.tads_ricardo_bibli.api.support.PostgresIntegrationTest;
 import br.edu.ifsul.cstsi.tads_ricardo_bibli.api.usuario.Usuario;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +28,7 @@ import org.springframework.http.ResponseEntity;
     webEnvironment =
         SpringBootTest.WebEnvironment
             .RANDOM_PORT) // indica que vai rodar o teste no container Spring Boot
-public abstract class BaseAPIIntegracaoTest extends MariaDbIntegrationTest {
+public abstract class BaseAPIIntegracaoTest extends PostgresIntegrationTest {
   @Autowired // indica ao Spring Boot que ele deve injetar essa dependência para a classe funcionar
   protected TestRestTemplate
       rest; // faz chamadas para APIs reais, no caso qualquer filha desta classe

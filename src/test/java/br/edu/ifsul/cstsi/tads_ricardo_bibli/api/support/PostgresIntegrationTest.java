@@ -3,13 +3,13 @@ package br.edu.ifsul.cstsi.tads_ricardo_bibli.api.support;
 import java.util.UUID;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.mariadb.MariaDBContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Shared ephemeral database for integration tests in the current MariaDB-based architecture. */
-public abstract class MariaDbIntegrationTest {
+/** Shared ephemeral PostgreSQL database for integration tests. */
+public abstract class PostgresIntegrationTest {
 
-  private static final MariaDBContainer DATABASE =
-      new MariaDBContainer("mariadb:11.4.5").withDatabaseName("resource_lending_test");
+  private static final PostgreSQLContainer DATABASE =
+      new PostgreSQLContainer("postgres:17.6-alpine").withDatabaseName("resource_lending_test");
 
   private static final String JWT_SECRET = UUID.randomUUID() + UUID.randomUUID().toString();
   private static final String EMAIL_CONFIRMATION_TOKEN = UUID.randomUUID().toString();

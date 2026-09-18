@@ -3,7 +3,7 @@ package br.edu.ifsul.cstsi.tads_ricardo_bibli.api.infra.security;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import br.edu.ifsul.cstsi.tads_ricardo_bibli.api.support.MariaDbIntegrationTest;
+import br.edu.ifsul.cstsi.tads_ricardo_bibli.api.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc // Autoconfigura o Spring Boot Web, modo Mockado (o que siginifica nos
 // entregar um container com um Servlet, mas sem o servidor web)
 @ActiveProfiles("test")
-class SecurityConfigTest extends MariaDbIntegrationTest {
+class SecurityConfigTest extends PostgresIntegrationTest {
 
   @Autowired // @AutoConfigureMockMvc (anotação na linha 16) nos permite injetar esse Bean
   private MockMvc
