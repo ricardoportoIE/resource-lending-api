@@ -16,20 +16,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping
 public class AutenticacaoController {
 
-    private final AuthenticationManager manager;
-    private final TokenService tokenService;
+  private final AuthenticationManager manager;
+  private final TokenService tokenService;
 
-    public AutenticacaoController(AuthenticationManager manager, TokenService tokenService) {
-        this.manager = manager;
-        this.tokenService = tokenService;
-    }
+  public AutenticacaoController(AuthenticationManager manager, TokenService tokenService) {
+    this.manager = manager;
+    this.tokenService = tokenService;
+  }
 
-    @PostMapping("api/v1/login")
-    public ResponseEntity<TokenJwtDTO> efetuarLogin(@RequestBody @Valid UsuarioAutenticacaoDTO data){
-        var authenticationDTO = new UsernamePasswordAuthenticationToken(data.email(), data.senha());
-        var authentication = manager.authenticate(authenticationDTO);
-        var tokenJWT = tokenService.geraToken((Usuario) authentication.getPrincipal()); //gera o token JWT para enviar na response
-        return ResponseEntity.ok(new TokenJwtDTO(tokenJWT)); //envia a response com o token JWT
-    }
-
+  @PostMapping("api/v1/login")
+  public ResponseEntity<TokenJwtDTO> efetuarLogin(@RequestBody @Valid UsuarioAutenticacaoDTO data) {
+    var authenticationDTO = new UsernamePasswordAuthenticationToken(data.email(), data.senha());
+    var authentication = manager.authenticate(authenticationDTO);
+    var tokenJWT =
+        tokenService.geraToken(
+            (Usuario) authentication.getPrincipal()); // gera o token JWT para enviar na response
+    return ResponseEntity.ok(new TokenJwtDTO(tokenJWT)); // envia a response com o token JWT
+  }
 }

@@ -10,5 +10,5 @@ import lombok.Setter;
 @Entity
 public class Periodico extends Exemplar {
 
-    private String editora;
+  private String editora;
 }

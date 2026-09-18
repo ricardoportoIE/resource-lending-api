@@ -1,4 +1,5 @@
 package br.edu.ifsul.cstsi.tads_ricardo_bibli.api.exemplar;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -10,9 +11,9 @@ import lombok.Setter;
 @DiscriminatorColumn(name = "tipo_exemplar")
 public abstract class Exemplar {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long codigo;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long codigo;
 
-    private String nome;
+  private String nome;
 }

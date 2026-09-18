@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>br.edu.ifsul.cstsi</groupId>
-    <artifactId>tads_ricardo</artifactId>
+    <artifactId>resource-lending-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>tads_ricardo</name>
-    <description>Spring Boot TADS</description>
+    <name>Resource Lending API</name>
+    <description>REST API for managing library resources and lending operations</description>
     <url/>
     <licenses>
         <license/>
@@ -27,14 +27,22 @@
         <url/>
     </scm>
     <properties>
-        <java.version>17</java.version>
+        <java.version>21</java.version>
+        <maven.version>3.9.9</maven.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <project.build.outputTimestamp>2026-09-19T00:00:00Z</project.build.outputTimestamp>
+        <java-jwt.version>4.4.0</java-jwt.version>
+        <lombok.version>1.18.42</lombok.version>
+        <springdoc.version>2.8.8</springdoc.version>
+        <testcontainers.version>2.0.5</testcontainers.version>
+        <spotless.version>3.10.2</spotless.version>
+        <google-java-format.version>1.36.1</google-java-format.version>
     </properties>
     <dependencies>
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
-            <version>3.3.3</version>
         </dependency>
 
 
@@ -75,12 +83,17 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-mariadb</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Para o JWT -->
         <!-- https://oauth.net/2/ -->
         <dependency>
             <groupId>com.auth0</groupId>
             <artifactId>java-jwt</artifactId>
-            <version>4.4.0</version>
+            <version>${java-jwt.version}</version>
         </dependency>
         <!-- Para validação -->
         <dependency>
@@ -92,7 +105,7 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.8.8</version>
+            <version>${springdoc.version}</version>
         </dependency>
     </dependencies>
 
@@ -106,6 +119,7 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
@@ -123,15 +137,51 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>com.heroku.sdk</groupId>
-                <artifactId>heroku-maven-plugin</artifactId>
-                <version>3.0.7</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
                 <configuration>
-                    <buildpacks>
-                        <buildpack>heroku/jvm</buildpack>
-                    </buildpacks>
-                    <appName>tadsricardo</appName>
+                    <rules>
+                        <requireJavaVersion>
+                            <version>[21,)</version>
+                        </requireJavaVersion>
+                        <requireMavenVersion>
+                            <version>[${maven.version},)</version>
+                        </requireMavenVersion>
+                    </rules>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>enforce-build-environment</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless.version}</version>
+                <configuration>
+                    <lineEndings>UNIX</lineEndings>
+                    <java>
+                        <googleJavaFormat>
+                            <version>${google-java-format.version}</version>
+                        </googleJavaFormat>
+                        <removeUnusedImports/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>verify-formatting</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

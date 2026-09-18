@@ -1,4 +1,5 @@
 package br.edu.ifsul.cstsi.tads_ricardo_bibli.api.paidealuno;
+
 import br.edu.ifsul.cstsi.tads_ricardo_bibli.api.cliente.Cliente;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;

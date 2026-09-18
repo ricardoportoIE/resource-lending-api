@@ -34,3 +34,13 @@ build/
 
 ### ETC
 *.zip
+*.log
+
+### Local environment and secrets ###
+.env
+.env.*
+!.env.example
+
+### OS generated files ###
+.DS_Store
+Thumbs.db

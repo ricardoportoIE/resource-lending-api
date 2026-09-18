@@ -15,53 +15,52 @@ import lombok.Setter;
 @DiscriminatorColumn(name = "tipo_cliente")
 public abstract class Cliente {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long codigo;
-    private String nome;
-    private Integer idade;
-    private String telefone;
-    private String endereco;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long codigo;
 
-    public Long getCodigo() {
-        return codigo;
-    }
+  private String nome;
+  private Integer idade;
+  private String telefone;
+  private String endereco;
 
-    public void setCodigo(Long codigo) {
-        this.codigo = codigo;
-    }
+  public Long getCodigo() {
+    return codigo;
+  }
 
-    public String getNome() {
-        return nome;
-    }
+  public void setCodigo(Long codigo) {
+    this.codigo = codigo;
+  }
 
-    public void setNome(String nome) {
-        this.nome = nome;
-    }
+  public String getNome() {
+    return nome;
+  }
 
-    public Integer getIdade() {
-        return idade;
-    }
+  public void setNome(String nome) {
+    this.nome = nome;
+  }
 
-    public void setIdade(Integer idade) {
-        this.idade = idade;
-    }
+  public Integer getIdade() {
+    return idade;
+  }
 
-    public String getTelefone() {
-        return telefone;
-    }
+  public void setIdade(Integer idade) {
+    this.idade = idade;
+  }
 
-    public void setTelefone(String telefone) {
-        this.telefone = telefone;
-    }
+  public String getTelefone() {
+    return telefone;
+  }
 
-    public String getEndereco() {
-        return endereco;
-    }
+  public void setTelefone(String telefone) {
+    this.telefone = telefone;
+  }
 
-    public void setEndereco(String endereco) {
-        this.endereco = endereco;
-    }
+  public String getEndereco() {
+    return endereco;
+  }
 
-
+  public void setEndereco(String endereco) {
+    this.endereco = endereco;
+  }
 }
