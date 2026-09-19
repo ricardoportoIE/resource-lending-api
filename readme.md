@@ -4,8 +4,8 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-24_passing-brightgreen)
-![Coverage](https://img.shields.io/badge/line_coverage-86.70%25-brightgreen)
+![Tests](https://img.shields.io/badge/tests-25_passing-brightgreen)
+![Coverage](https://img.shields.io/badge/line_coverage-86.85%25-brightgreen)
 
 A production-oriented REST API for lending shared organisational resources: books, laptops, rooms, tools and other individually tracked assets. It handles catalogue inventory, policy-driven loans, FIFO reservations and simultaneous claims without lending the same physical item twice.
 
@@ -21,6 +21,7 @@ This repository is also a modernization case study. An academic library CRUD app
 - Policy-driven due dates and active-loan limits by role and resource type.
 - Transactional, immutable audit events for domain transitions.
 - Transactional Outbox notifications with idempotent delivery, retries and exponential backoff.
+- Persistent `Idempotency-Key` replay for duplicate-sensitive loan and reservation commands.
 - RFC 9457 Problem Details with stable error codes and correlation IDs.
 - Flyway-only PostgreSQL schema management with Hibernate validation.
 - Testcontainers integration and concurrency tests against PostgreSQL 17.
@@ -141,6 +142,8 @@ Paginated catalogue queries support `type`, `category`, `status`, `page`, `size`
 
 Complete, copyable authentication and workflow requests are in [cURL examples](docs/api-examples.md).
 
+Loan creation, approval, collection, return and reservation creation accept an optional `Idempotency-Key` header. The key is scoped to the authenticated user and endpoint. An identical retry replays the original HTTP status, body, content type and location without executing the command again; a changed payload with the same key returns `409 IDEMPOTENCY_KEY_REUSED`. Records expire after the configured retention window.
+
 ## Authorization model
 
 | Capability | STUDENT | STAFF | ADMIN |
@@ -208,12 +211,14 @@ Runtime secrets are environment-only. `.env` is ignored by Git; the versioned `.
 | `OUTBOX_RETRY_BASE` | No | ISO-8601 exponential backoff base; `PT30S` |
 | `NOTIFICATION_WEBHOOK_URL` | No | Blank uses the fake log adapter; otherwise receives JSON via POST |
 | `NOTIFICATION_DUE_SOON_WINDOW` | No | Lead time for due-soon events; `PT24H` |
+| `IDEMPOTENCY_RETENTION` | No | Retain replayable command responses; `P1D` |
+| `IDEMPOTENCY_CLEANUP_MS` | No | Expired-record cleanup interval; `3600000` |
 | `LOG_FORMAT` | No | `ecs`; use `plain` for local human-readable logs |
 | `APP_PORT` | No | Host port `8080` in Docker Compose |
 
 ## Database evolution and modernization
 
-Flyway is the only schema authority and Hibernate runs with `ddl-auto=validate`. Seven versioned migrations introduce authentication, inventory, loan policies, audit events, reservations, concurrency constraints and the transactional Outbox.
+Flyway is the only schema authority and Hibernate runs with `ddl-auto=validate`. Eight versioned migrations introduce authentication, inventory, loan policies, audit events, reservations, concurrency constraints, the transactional Outbox and command idempotency.
 
 The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the replacement domain became complete. Migration V6 moves its tables into a dedicated `legacy` schema rather than dropping them, preserving historical data while keeping the active `public` schema and OpenAPI contract focused on resources, items, loans and reservations.
 
@@ -227,6 +232,7 @@ The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the re
 | Operations and delivery | OpenAPI, structured logs, metrics, Docker Compose, coverage gates and CI |
 | Portfolio finish | Legacy API retirement, faithful diagrams and verified examples |
 | Async integration | Transactional Outbox, due-soon jobs, idempotent notification delivery and failed-event operations |
+| Reliable commands | Atomic idempotency claims, request fingerprinting and exact response replay |
 
 The project now lives in the professional GitHub account [`ricardoportoIE`](https://github.com/ricardoportoIE/resource-lending-api); the repository history retains the original authorship and the complete modernization journey.
 

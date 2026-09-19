@@ -1,7 +1,11 @@
 package com.ricardoporto.lending.shared.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ricardoporto.lending.idempotency.IdempotencyFilter;
+import com.ricardoporto.lending.idempotency.IdempotencyService;
 import java.util.Arrays;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -48,6 +52,20 @@ public class SecurityConfig {
   }
 
   @Bean
+  public IdempotencyFilter idempotencyFilter(
+      IdempotencyService idempotencyService, ObjectMapper objectMapper) {
+    return new IdempotencyFilter(idempotencyService, objectMapper);
+  }
+
+  @Bean
+  public FilterRegistrationBean<IdempotencyFilter> disableIdempotencyFilterAutoRegistration(
+      IdempotencyFilter filter) {
+    var registration = new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
+  }
+
+  @Bean
   public CorsConfigurationSource corsConfigurationSource(
       @Value("${api.security.cors.allowed-origins:}") String configuredOrigins) {
     var origins =
@@ -58,8 +76,10 @@ public class SecurityConfig {
     var configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(origins);
     configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
-    configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type"));
-    configuration.setExposedHeaders(java.util.List.of("Location"));
+    configuration.setAllowedHeaders(
+        java.util.List.of("Authorization", "Content-Type", "Idempotency-Key"));
+    configuration.setExposedHeaders(
+        java.util.List.of("Location", "Idempotency-Replayed", "X-Correlation-ID"));
     configuration.setAllowCredentials(!origins.isEmpty());
     var source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", configuration);
@@ -67,7 +87,8 @@ public class SecurityConfig {
   }
 
   @Bean
-  public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+  public SecurityFilterChain filterChain(HttpSecurity http, IdempotencyFilter idempotencyFilter)
+      throws Exception {
     http.csrf(csrf -> csrf.disable())
         .cors(cors -> {})
         .sessionManagement(
@@ -110,7 +131,8 @@ public class SecurityConfig {
                 exceptions
                     .authenticationEntryPoint(authenticationEntryPoint)
                     .accessDeniedHandler(accessDeniedHandler))
-        .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class);
+        .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(idempotencyFilter, SecurityFilter.class);
     return http.build();
   }
 }

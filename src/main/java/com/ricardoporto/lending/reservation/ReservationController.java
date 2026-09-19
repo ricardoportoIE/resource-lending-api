@@ -1,5 +1,7 @@
 package com.ricardoporto.lending.reservation;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.net.URI;
 import java.util.List;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,7 +26,14 @@ public class ReservationController {
   }
 
   @PostMapping("/resources/{resourceId}/reservations")
-  public ResponseEntity<ReservationResponse> reserve(@PathVariable UUID resourceId) {
+  public ResponseEntity<ReservationResponse> reserve(
+      @PathVariable UUID resourceId,
+      @Parameter(
+              name = "Idempotency-Key",
+              in = ParameterIn.HEADER,
+              description = "Optional retry key; identical requests replay the original response")
+          @RequestHeader(name = "Idempotency-Key", required = false)
+          String idempotencyKey) {
     var created = reservationService.reserve(resourceId);
     return ResponseEntity.created(URI.create("/api/v1/reservations/" + created.id())).body(created);
   }

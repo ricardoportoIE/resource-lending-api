@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ricardoporto.lending.audit.AuditEventRepository;
+import com.ricardoporto.lending.idempotency.IdempotencyRecordRepository;
+import com.ricardoporto.lending.idempotency.IdempotencyStatus;
 import com.ricardoporto.lending.outbox.OutboxEventRepository;
 import com.ricardoporto.lending.resource.Resource;
 import com.ricardoporto.lending.resource.ResourceItem;
@@ -48,6 +50,7 @@ class LoanWorkflowIntegrationTest extends PostgresIntegrationTest {
   @Autowired private LoanRepository loanRepository;
   @Autowired private AuditEventRepository auditEventRepository;
   @Autowired private OutboxEventRepository outboxEventRepository;
+  @Autowired private IdempotencyRecordRepository idempotencyRecordRepository;
 
   private Resource resource;
   private ResourceItem item;
@@ -152,6 +155,55 @@ class LoanWorkflowIntegrationTest extends PostgresIntegrationTest {
 
     var response = requestLoan(item.getId(), "student1@email.com", 409);
     assertEquals("LOAN_LIMIT_REACHED", response.get("code").textValue());
+  }
+
+  @Test
+  void replaysCommandResponseAndRejectsKeyReuseWithDifferentPayload() throws Exception {
+    var key = "loan-request-" + UUID.randomUUID();
+    var body = "{\"resourceItemId\":\"" + item.getId() + "\"}";
+    var before = loanRepository.count();
+
+    var original =
+        mvc.perform(
+                post("/api/v1/loans")
+                    .header(HttpHeaders.AUTHORIZATION, bearer("student1@email.com"))
+                    .header("Idempotency-Key", key)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse();
+    var replay =
+        mvc.perform(
+                post("/api/v1/loans")
+                    .header(HttpHeaders.AUTHORIZATION, bearer("student1@email.com"))
+                    .header("Idempotency-Key", key)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isCreated())
+            .andExpect(
+                result ->
+                    assertEquals("true", result.getResponse().getHeader("Idempotency-Replayed")))
+            .andReturn()
+            .getResponse();
+
+    assertEquals(original.getContentAsString(), replay.getContentAsString());
+    assertEquals(before + 1, loanRepository.count());
+    var record =
+        idempotencyRecordRepository
+            .findByIdempotencyKeyAndUserIdAndEndpoint(key, 3L, "/api/v1/loans")
+            .orElseThrow();
+    assertEquals(IdempotencyStatus.COMPLETED, record.getStatus());
+    assertEquals(201, record.getHttpStatus());
+
+    mvc.perform(
+            post("/api/v1/loans")
+                .header(HttpHeaders.AUTHORIZATION, bearer("student1@email.com"))
+                .header("Idempotency-Key", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"resourceItemId\":\"" + UUID.randomUUID() + "\"}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
   }
 
   private com.fasterxml.jackson.databind.JsonNode requestLoan(

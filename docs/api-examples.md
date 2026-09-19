@@ -94,6 +94,7 @@ curl --fail-with-body \
 LOAN=$(curl --fail-with-body --silent \
   --request POST http://localhost:8080/api/v1/loans \
   --header "Authorization: Bearer $STUDENT_TOKEN" \
+  --header "Idempotency-Key: loan-request-$ITEM_ID" \
   --header 'Content-Type: application/json' \
   --data "{\"resourceItemId\":\"$ITEM_ID\"}")
 
@@ -103,15 +104,18 @@ export LOAN_ID=$(printf '%s' "$LOAN" | jq -r '.id')
 ```bash
 curl --fail-with-body --request POST \
   "http://localhost:8080/api/v1/loans/$LOAN_ID/approve" \
-  --header "Authorization: Bearer $STAFF_TOKEN"
+  --header "Authorization: Bearer $STAFF_TOKEN" \
+  --header "Idempotency-Key: loan-approve-$LOAN_ID"
 
 curl --fail-with-body --request POST \
   "http://localhost:8080/api/v1/loans/$LOAN_ID/collect" \
-  --header "Authorization: Bearer $STAFF_TOKEN"
+  --header "Authorization: Bearer $STAFF_TOKEN" \
+  --header "Idempotency-Key: loan-collect-$LOAN_ID"
 
 curl --fail-with-body --request POST \
   "http://localhost:8080/api/v1/loans/$LOAN_ID/return" \
-  --header "Authorization: Bearer $STAFF_TOKEN"
+  --header "Authorization: Bearer $STAFF_TOKEN" \
+  --header "Idempotency-Key: loan-return-$LOAN_ID"
 ```
 
 ## Reserve a resource
@@ -119,7 +123,8 @@ curl --fail-with-body --request POST \
 ```bash
 curl --fail-with-body \
   --request POST "http://localhost:8080/api/v1/resources/$RESOURCE_ID/reservations" \
-  --header "Authorization: Bearer $STUDENT_TOKEN"
+  --header "Authorization: Bearer $STUDENT_TOKEN" \
+  --header "Idempotency-Key: reservation-$RESOURCE_ID"
 ```
 
 ```bash

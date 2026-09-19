@@ -1,5 +1,7 @@
 package com.ricardoporto.lending.loan;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,7 +27,14 @@ public class LoanController {
   }
 
   @PostMapping
-  public ResponseEntity<LoanResponse> request(@Valid @RequestBody CreateLoanRequest request) {
+  public ResponseEntity<LoanResponse> request(
+      @Valid @RequestBody CreateLoanRequest request,
+      @Parameter(
+              name = "Idempotency-Key",
+              in = ParameterIn.HEADER,
+              description = "Optional retry key; identical requests replay the original response")
+          @RequestHeader(name = "Idempotency-Key", required = false)
+          String idempotencyKey) {
     var created = loanWorkflowService.request(request);
     return ResponseEntity.created(URI.create("/api/v1/loans/" + created.id())).body(created);
   }
@@ -40,7 +50,11 @@ public class LoanController {
   }
 
   @PostMapping("/{id}/approve")
-  public ResponseEntity<LoanResponse> approve(@PathVariable UUID id) {
+  public ResponseEntity<LoanResponse> approve(
+      @PathVariable UUID id,
+      @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER)
+          @RequestHeader(name = "Idempotency-Key", required = false)
+          String idempotencyKey) {
     return ResponseEntity.ok(loanWorkflowService.approve(id));
   }
 
@@ -50,12 +64,20 @@ public class LoanController {
   }
 
   @PostMapping("/{id}/collect")
-  public ResponseEntity<LoanResponse> collect(@PathVariable UUID id) {
+  public ResponseEntity<LoanResponse> collect(
+      @PathVariable UUID id,
+      @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER)
+          @RequestHeader(name = "Idempotency-Key", required = false)
+          String idempotencyKey) {
     return ResponseEntity.ok(loanWorkflowService.collect(id));
   }
 
   @PostMapping("/{id}/return")
-  public ResponseEntity<LoanResponse> returnLoan(@PathVariable UUID id) {
+  public ResponseEntity<LoanResponse> returnLoan(
+      @PathVariable UUID id,
+      @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER)
+          @RequestHeader(name = "Idempotency-Key", required = false)
+          String idempotencyKey) {
     return ResponseEntity.ok(loanWorkflowService.returnLoan(id));
   }
 
