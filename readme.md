@@ -3,8 +3,10 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+[![CI](https://github.com/ricardoportoIE/resource-lending-api/actions/workflows/ci.yml/badge.svg)](https://github.com/ricardoportoIE/resource-lending-api/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/badge/tests-28_passing-brightgreen)
-![Modernisation](https://img.shields.io/badge/modernisation-phase_8_complete-blue)
+![Coverage](https://img.shields.io/badge/line_coverage-80.14%25-brightgreen)
+![Modernisation](https://img.shields.io/badge/modernisation-phase_9_complete-blue)
 
 A Java and Spring Boot REST API being re-engineered into a production-oriented platform for lending organisational resources. It currently manages library-style customers, catalogue exemplars and loans while its staged roadmap expands the domain to equipment, reservations, policies, auditability and concurrency-safe workflows.
 
@@ -36,6 +38,8 @@ Lending systems look simple until availability, authorisation and simultaneous r
 - RFC 9457 Problem Details for validation, not-found, conflict and internal errors.
 - PostgreSQL persistence managed by Flyway and validated by Hibernate.
 - Integration, migration, security and architecture tests against PostgreSQL 17.
+- Multi-stage, non-root container image and a health-checked Docker Compose stack.
+- GitHub Actions verification for tests, coverage gates and container image builds.
 - Reproducible Java 21 build, Maven Wrapper and automated formatting checks.
 - Runtime credentials and secrets supplied exclusively through environment variables.
 
@@ -52,7 +56,8 @@ Lending systems look simple until availability, authorisation and simultaneous r
 | 6 — Loan workflow | Complete | State transitions, due-date policies, limits, overdue checks and audit events |
 | 7 — Reservations and concurrency | Complete | FIFO queue, promotion, expiry, pessimistic locking and a concurrent race test |
 | 8 — Observability and API docs | Complete | Health probes, metrics, structured logs, correlation IDs and current OpenAPI tags |
-| 9–10 — Delivery and portfolio | Next | Docker Compose, CI, coverage and final architecture documentation |
+| 9 — Delivery and CI | Complete | Non-root image, Docker Compose, health checks, GitHub Actions and JaCoCo gates |
+| 10 — Portfolio finish | Next | Final architecture documentation, verified examples and naming cleanup |
 
 ## Architecture
 
@@ -97,7 +102,7 @@ The main decisions and trade-offs are recorded in [ADR-001: Feature-oriented mod
 | Database | PostgreSQL 17, Flyway, Hibernate schema validation |
 | API documentation | springdoc-openapi 2.8.8 |
 | Testing | JUnit 5, Spring Boot Test, MockMvc, Testcontainers 2.0.5 |
-| Build and quality | Maven Wrapper 3.9.9, Maven Enforcer, Spotless 3.10.2 |
+| Build and quality | Maven Wrapper 3.9.9, Maven Enforcer, Spotless 3.10.2, JaCoCo 0.8.13, GitHub Actions |
 
 ## Run the tests
 
@@ -132,7 +137,21 @@ PowerShell equivalent:
 Copy-Item .env.example .env
 ```
 
-Replace every placeholder in `.env`, start PostgreSQL according to `DB_URL`, then run:
+Replace every placeholder in `.env`. The recommended path starts the API and PostgreSQL together, waits for the database health check and persists database data in a named volume:
+
+```bash
+docker compose up --build
+```
+
+The runtime image is built in two stages and runs as the unprivileged `app` user. When both health checks pass, Swagger UI is available at `http://localhost:8080/swagger-ui/index.html` and health at `http://localhost:8080/actuator/health`.
+
+Stop the stack with:
+
+```bash
+docker compose down
+```
+
+To run the API directly from Maven instead, start PostgreSQL according to `DB_URL`, then run:
 
 ```bash
 ./mvnw spring-boot:run
@@ -263,14 +282,16 @@ Reservations are ordered FIFO. An available item makes the head reservation imme
 
 ## Build quality
 
-`mvn verify` enforces the minimum Java and Maven versions, compiles, tests, packages the application and runs Spotless. Formatting can also be checked or applied independently:
+`mvn verify` enforces the minimum Java and Maven versions, compiles, runs the 28-test PostgreSQL integration suite, packages the application, checks formatting and generates a JaCoCo report. The build fails below 75% line coverage or 35% branch coverage. The current report records 80.14% line and 42.45% branch coverage.
+
+GitHub Actions repeats that verification on every push and pull request to `main`, uploads the HTML coverage report and builds the production container image. Formatting can also be checked or applied independently:
 
 ```bash
 ./mvnw spotless:check
 ./mvnw spotless:apply
 ```
 
-The executable artifact is produced at `target/resource-lending-api-0.0.1-SNAPSHOT.jar`.
+The executable artifact is produced at `target/resource-lending-api-0.0.1-SNAPSHOT.jar`; the local HTML coverage report is at `target/site/jacoco/index.html`.
 
 ## Security posture
 
