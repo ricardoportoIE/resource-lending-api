@@ -4,8 +4,8 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-25_passing-brightgreen)
-![Coverage](https://img.shields.io/badge/line_coverage-86.85%25-brightgreen)
+![Tests](https://img.shields.io/badge/tests-27_passing-brightgreen)
+![Coverage](https://img.shields.io/badge/line_coverage-85.64%25-brightgreen)
 
 A production-oriented REST API for lending shared organisational resources: books, laptops, rooms, tools and other individually tracked assets. It handles catalogue inventory, policy-driven loans, FIFO reservations and simultaneous claims without lending the same physical item twice.
 
@@ -22,6 +22,7 @@ This repository is also a modernization case study. An academic library CRUD app
 - Transactional, immutable audit events for domain transitions.
 - Transactional Outbox notifications with idempotent delivery, retries and exponential backoff.
 - Persistent `Idempotency-Key` replay for duplicate-sensitive loan and reservation commands.
+- Staff operational dashboard, demand/utilization analytics and RFC 4180-compatible CSV exports.
 - RFC 9457 Problem Details with stable error codes and correlation IDs.
 - Flyway-only PostgreSQL schema management with Hibernate validation.
 - Testcontainers integration and concurrency tests against PostgreSQL 17.
@@ -137,6 +138,7 @@ All business endpoints are versioned under `/api/v1`.
 | Loan commands | `POST /loans/{id}/approve`, `/reject`, `/collect`, `/return`, `/cancel` |
 | Reservations | `POST /resources/{id}/reservations`, `GET /reservations`, `DELETE /reservations/{id}` |
 | Outbox operations | `GET /admin/outbox-events?status=FAILED` (`ADMIN` only) |
+| Operational reports | `GET /reports/dashboard`, `/loans`, `/resource-utilization`, `/reservation-wait`, `/popular-resources`, `/unavailable-items`, `/export.csv` |
 
 Paginated catalogue queries support `type`, `category`, `status`, `page`, `size` and `sort` parameters. The generated OpenAPI document is the source of truth for request and response schemas.
 
@@ -157,6 +159,7 @@ Loan creation, approval, collection, return and reservation creation accept an o
 | Create, list and cancel own reservations | Yes | Yes | Yes |
 | List or cancel any reservation | No | Yes | Yes |
 | Read protected operational endpoints | No | No | Yes |
+| Read dashboards and export reports | No | Yes | Yes |
 
 Unauthenticated requests return `401`; authenticated callers without permission return `403`. Students cannot select another borrower when requesting a loan.
 
@@ -233,6 +236,7 @@ The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the re
 | Portfolio finish | Legacy API retirement, faithful diagrams and verified examples |
 | Async integration | Transactional Outbox, due-soon jobs, idempotent notification delivery and failed-event operations |
 | Reliable commands | Atomic idempotency claims, request fingerprinting and exact response replay |
+| Operational intelligence | Staff dashboards, current utilization, demand ranking, queue wait time and CSV export |
 
 The project now lives in the professional GitHub account [`ricardoportoIE`](https://github.com/ricardoportoIE/resource-lending-api); the repository history retains the original authorship and the complete modernization journey.
 

@@ -104,6 +104,8 @@ public class SecurityConfig {
                     .hasRole("ADMIN")
                     .requestMatchers("/api/v1/admin/**")
                     .hasRole("ADMIN")
+                    .requestMatchers("/api/v1/reports/**")
+                    .hasAnyRole("STAFF", "ADMIN")
                     .requestMatchers(
                         HttpMethod.POST,
                         "/api/v1/auth/register",

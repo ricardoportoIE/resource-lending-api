@@ -132,6 +132,25 @@ curl --fail-with-body http://localhost:8080/api/v1/reservations \
   --header "Authorization: Bearer $STUDENT_TOKEN"
 ```
 
+## Query and export operational reports
+
+```bash
+curl --fail-with-body \
+  --header "Authorization: Bearer $STAFF_TOKEN" \
+  http://localhost:8080/api/v1/reports/dashboard
+
+curl --fail-with-body \
+  --header "Authorization: Bearer $STAFF_TOKEN" \
+  'http://localhost:8080/api/v1/reports/popular-resources?limit=10'
+
+curl --fail-with-body \
+  --header "Authorization: Bearer $STAFF_TOKEN" \
+  --output active-loans.csv \
+  'http://localhost:8080/api/v1/reports/export.csv?report=LOANS&loanStatus=ACTIVE'
+```
+
+`currentUtilizationPercent` is the share of physical items currently `ON_LOAN`; unavailable inventory also includes reserved, maintenance, lost and retired items.
+
 ## Inspect the error contract
 
 ```bash
