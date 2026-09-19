@@ -3,6 +3,8 @@ package com.ricardoporto.lending.auth;
 import com.ricardoporto.lending.user.UsuarioCadastroDto;
 import com.ricardoporto.lending.user.UsuarioDto;
 import com.ricardoporto.lending.user.UsuarioService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/auth")
+@SecurityRequirements
+@Tag(name = "Authentication", description = "Account registration and token lifecycle")
 public class AutenticacaoController {
   private final LoginService loginService;
   private final RefreshTokenService refreshTokenService;

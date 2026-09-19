@@ -1,5 +1,6 @@
 package com.ricardoporto.lending.loan;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/loans")
+@Tag(name = "Loans", description = "Policy-driven lending state machine")
 public class LoanController {
   private final LoanWorkflowService loanWorkflowService;
 

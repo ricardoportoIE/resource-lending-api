@@ -1,5 +1,6 @@
 package com.ricardoporto.lending.resource;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.UUID;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1")
+@Tag(name = "Resources", description = "Catalogue descriptions and physical inventory items")
 public class ResourceController {
   private final ResourceCatalogueService resourceCatalogueService;
 

@@ -3,8 +3,8 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-25_passing-brightgreen)
-![Modernisation](https://img.shields.io/badge/modernisation-phase_7_complete-blue)
+![Tests](https://img.shields.io/badge/tests-28_passing-brightgreen)
+![Modernisation](https://img.shields.io/badge/modernisation-phase_8_complete-blue)
 
 A Java and Spring Boot REST API being re-engineered into a production-oriented platform for lending organisational resources. It currently manages library-style customers, catalogue exemplars and loans while its staged roadmap expands the domain to equipment, reservations, policies, auditability and concurrency-safe workflows.
 
@@ -28,6 +28,8 @@ Lending systems look simple until availability, authorisation and simultaneous r
 - Role- and resource-type loan policies, overdue blocking, active-loan limits and immutable audit events.
 - FIFO reservations with ready windows, cancellation, expiry and automatic promotion after returns.
 - Pessimistic item locking plus database uniqueness protection for concurrency-safe last-item claims.
+- ECS-compatible structured logs with a validated correlation ID propagated in responses and errors.
+- Actuator health probes and Prometheus metrics with role-protected operational endpoints.
 - Feature-oriented modular monolith under `com.ricardoporto.lending`.
 - Thin controllers backed by transactional application services.
 - Explicit DTO mappers; JPA entities do not cross the HTTP boundary.
@@ -49,7 +51,8 @@ Lending systems look simple until availability, authorisation and simultaneous r
 | 5 — Catalogue and inventory | Complete | Resources, physical items, lifecycle statuses, filters and pagination |
 | 6 — Loan workflow | Complete | State transitions, due-date policies, limits, overdue checks and audit events |
 | 7 — Reservations and concurrency | Complete | FIFO queue, promotion, expiry, pessimistic locking and a concurrent race test |
-| 8–10 — Operations and portfolio | Next | Observability, Docker Compose, CI and final architecture documentation |
+| 8 — Observability and API docs | Complete | Health probes, metrics, structured logs, correlation IDs and current OpenAPI tags |
+| 9–10 — Delivery and portfolio | Next | Docker Compose, CI, coverage and final architecture documentation |
 
 ## Architecture
 
@@ -113,7 +116,7 @@ On Windows:
 .\mvnw.cmd clean verify
 ```
 
-No locally installed database or database credentials are required. The command starts a pinned `postgres:17.6-alpine` container, applies production migrations and test-only fixtures, runs all 25 tests, checks formatting and packages the executable JAR.
+No locally installed database or database credentials are required. The command starts a pinned `postgres:17.6-alpine` container, applies production migrations and test-only fixtures, runs all 28 tests, checks formatting and packages the executable JAR.
 
 ## Run the API locally
 
@@ -148,6 +151,7 @@ Swagger UI is available at `http://localhost:8080/swagger-ui/index.html`.
 | `CORS_ALLOWED_ORIGINS` | No | Comma-separated browser origins; cross-origin access is denied when empty |
 | `RESERVATION_READY_WINDOW` | No | ISO-8601 pickup window; defaults to `P2D` |
 | `RESERVATION_EXPIRY_SCAN_MS` | No | Milliseconds between expiry scans; defaults to `60000` |
+| `LOG_FORMAT` | No | Console format; defaults to ECS-compatible structured JSON |
 
 `.env` files are ignored by Git. Only `.env.example`, containing placeholders, is versioned.
 
@@ -193,6 +197,17 @@ Errors use `application/problem+json` and follow RFC 9457. Stable `code` values 
 ```
 
 Unexpected exceptions are logged internally and return a generic response without exposing stack traces or internal exception messages.
+
+### Operational endpoints
+
+```text
+GET /actuator/health       # public, including liveness/readiness groups
+GET /actuator/info         # ADMIN
+GET /actuator/metrics      # ADMIN
+GET /actuator/prometheus   # ADMIN
+```
+
+Every request receives an `X-Correlation-ID` response header. A safe client-supplied value is preserved; otherwise the API generates a UUID. The same value is placed in structured logs and Problem Details, allowing one request to be traced without logging passwords or tokens.
 
 ### Authentication lifecycle
 

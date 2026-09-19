@@ -1,5 +1,6 @@
 package com.ricardoporto.lending.shared.exception;
 
+import com.ricardoporto.lending.shared.logging.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.time.Instant;
@@ -124,6 +125,8 @@ public class GlobalExceptionHandler {
     problem.setInstance(URI.create(request.getRequestURI()));
     problem.setProperty("code", code);
     problem.setProperty("timestamp", Instant.now());
+    var correlationId = request.getAttribute(CorrelationIdFilter.ATTRIBUTE);
+    if (correlationId != null) problem.setProperty("correlationId", correlationId);
     return problem;
   }
 

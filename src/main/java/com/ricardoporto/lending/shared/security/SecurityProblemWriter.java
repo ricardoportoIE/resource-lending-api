@@ -1,6 +1,7 @@
 package com.ricardoporto.lending.shared.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ricardoporto.lending.shared.logging.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -33,6 +34,8 @@ public class SecurityProblemWriter {
     problem.setInstance(URI.create(request.getRequestURI()));
     problem.setProperty("code", code);
     problem.setProperty("timestamp", Instant.now());
+    var correlationId = request.getAttribute(CorrelationIdFilter.ATTRIBUTE);
+    if (correlationId != null) problem.setProperty("correlationId", correlationId);
     response.setStatus(status.value());
     response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
     objectMapper.writeValue(response.getOutputStream(), problem);

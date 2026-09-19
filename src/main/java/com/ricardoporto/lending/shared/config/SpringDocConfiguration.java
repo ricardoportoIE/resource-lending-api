@@ -30,8 +30,9 @@ public class SpringDocConfiguration {
         .info(
             new Info()
                 .title("Resource Lending API")
+                .version("v1")
                 .description(
-                    "REST API for managing customers, lendable resources and loans while the legacy domain is modernised incrementally.")
+                    "Production-oriented REST API for catalogue inventory, policy-driven loans, reservations and returns. Authentication uses short-lived JWT access tokens and rotating refresh tokens.")
                 .contact(new Contact().name("Ricardo Porto"))
                 .license(new License().name("Portfolio project")));
   }
