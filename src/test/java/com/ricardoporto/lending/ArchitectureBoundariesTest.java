@@ -7,6 +7,7 @@ import com.ricardoporto.lending.auth.AutenticacaoController;
 import com.ricardoporto.lending.customer.ClienteController;
 import com.ricardoporto.lending.loan.EmprestimoController;
 import com.ricardoporto.lending.resource.ExemplarController;
+import com.ricardoporto.lending.resource.ResourceController;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
@@ -21,7 +22,8 @@ class ArchitectureBoundariesTest {
             AutenticacaoController.class,
             ClienteController.class,
             EmprestimoController.class,
-            ExemplarController.class);
+            ExemplarController.class,
+            ResourceController.class);
 
     assertAll(
         controllers.stream()

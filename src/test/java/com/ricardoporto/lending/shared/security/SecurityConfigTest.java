@@ -81,11 +81,11 @@ class SecurityConfigTest extends PostgresIntegrationTest {
   void studentCannotManageCatalogueButStaffCan() throws Exception {
     var resource =
         """
-        {"nome":"Clean Architecture","tipo":"LIVRO","autor":"Robert Martin","editora":"Pearson","edicao":1}
+        {"name":"Clean Architecture","type":"BOOK","identifier":"SECURITY-TEST-BOOK","loanable":true}
         """;
 
     mvc.perform(
-            post("/api/v1/exemplares")
+            post("/api/v1/resources")
                 .header(HttpHeaders.AUTHORIZATION, bearer("student1@email.com"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(resource))
@@ -93,7 +93,7 @@ class SecurityConfigTest extends PostgresIntegrationTest {
         .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
     mvc.perform(
-            post("/api/v1/exemplares")
+            post("/api/v1/resources")
                 .header(HttpHeaders.AUTHORIZATION, bearer("staff@email.com"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(resource))

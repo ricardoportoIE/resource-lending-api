@@ -85,13 +85,19 @@ public class SecurityConfig {
                         "/api/v1/auth/logout")
                     .permitAll()
                     .requestMatchers(
-                        HttpMethod.POST, "/api/v1/exemplares/**", "/api/v1/clientes/**")
+                        HttpMethod.POST,
+                        "/api/v1/exemplares/**",
+                        "/api/v1/clientes/**",
+                        "/api/v1/resources/**",
+                        "/api/v1/resource-items/**")
                     .hasAnyRole("STAFF", "ADMIN")
                     .requestMatchers(
                         HttpMethod.PATCH,
                         "/api/v1/exemplares/**",
                         "/api/v1/clientes/**",
-                        "/api/v1/emprestimos/**")
+                        "/api/v1/emprestimos/**",
+                        "/api/v1/resources/**",
+                        "/api/v1/resource-items/**")
                     .hasAnyRole("STAFF", "ADMIN")
                     .requestMatchers(
                         HttpMethod.DELETE,
