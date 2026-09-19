@@ -1,6 +1,7 @@
 package com.ricardoporto.lending.loan;
 
 import com.ricardoporto.lending.audit.AuditService;
+import com.ricardoporto.lending.observability.DomainMetrics;
 import com.ricardoporto.lending.outbox.OutboxService;
 import com.ricardoporto.lending.reservation.ReservationService;
 import com.ricardoporto.lending.resource.ResourceItem;
@@ -39,6 +40,7 @@ public class LoanWorkflowService {
   private final AuditService auditService;
   private final ReservationService reservationService;
   private final OutboxService outboxService;
+  private final DomainMetrics domainMetrics;
 
   public LoanWorkflowService(
       LoanRepository loanRepository,
@@ -48,7 +50,8 @@ public class LoanWorkflowService {
       AuthorizationService authorizationService,
       AuditService auditService,
       ReservationService reservationService,
-      OutboxService outboxService) {
+      OutboxService outboxService,
+      DomainMetrics domainMetrics) {
     this.loanRepository = loanRepository;
     this.policyRepository = policyRepository;
     this.itemRepository = itemRepository;
@@ -57,6 +60,7 @@ public class LoanWorkflowService {
     this.auditService = auditService;
     this.reservationService = reservationService;
     this.outboxService = outboxService;
+    this.domainMetrics = domainMetrics;
   }
 
   @Transactional(noRollbackFor = ApiException.class)
@@ -75,6 +79,7 @@ public class LoanWorkflowService {
     loan.setRequestedAt(Instant.now());
     var saved = loanRepository.save(loan);
     auditService.record("LOAN_REQUESTED", "Loan", saved.getId(), "status=REQUESTED");
+    domainMetrics.loanRequested();
     return LoanMapper.toResponse(saved);
   }
 
@@ -251,6 +256,7 @@ public class LoanWorkflowService {
   }
 
   private ApiException invalidTransition(Loan loan, LoanStatus target) {
+    domainMetrics.loanTransitionConflict();
     return conflict(
         "INVALID_LOAN_TRANSITION",
         "Loan cannot transition from " + loan.getStatus() + " to " + target + ".");

@@ -18,6 +18,8 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
 
   List<Loan> findAllByStatusAndDueAtBefore(LoanStatus status, Instant now);
 
+  long countByStatus(LoanStatus status);
+
   List<Loan> findAllByStatusAndDueAtBetween(
       LoanStatus status, Instant dueAtStart, Instant dueAtEnd);
 }

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -87,6 +88,7 @@ public class SecurityConfig {
   }
 
   @Bean
+  @Order(2)
   public SecurityFilterChain filterChain(HttpSecurity http, IdempotencyFilter idempotencyFilter)
       throws Exception {
     http.csrf(csrf -> csrf.disable())

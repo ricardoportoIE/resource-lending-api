@@ -1,6 +1,7 @@
 package com.ricardoporto.lending.reservation;
 
 import com.ricardoporto.lending.audit.AuditService;
+import com.ricardoporto.lending.observability.DomainMetrics;
 import com.ricardoporto.lending.outbox.OutboxService;
 import com.ricardoporto.lending.resource.Resource;
 import com.ricardoporto.lending.resource.ResourceItem;
@@ -35,6 +36,7 @@ public class ReservationService {
   private final AuthorizationService authorizationService;
   private final AuditService auditService;
   private final OutboxService outboxService;
+  private final DomainMetrics domainMetrics;
   private final Duration readyWindow;
 
   public ReservationService(
@@ -44,6 +46,7 @@ public class ReservationService {
       AuthorizationService authorizationService,
       AuditService auditService,
       OutboxService outboxService,
+      DomainMetrics domainMetrics,
       @Value("${api.reservation.ready-window}") Duration readyWindow) {
     this.reservationRepository = reservationRepository;
     this.resourceRepository = resourceRepository;
@@ -51,6 +54,7 @@ public class ReservationService {
     this.authorizationService = authorizationService;
     this.auditService = auditService;
     this.outboxService = outboxService;
+    this.domainMetrics = domainMetrics;
     this.readyWindow = readyWindow;
   }
 
@@ -201,6 +205,7 @@ public class ReservationService {
     item.setStatus(ResourceItemStatus.RESERVED);
     item.setUpdatedAt(now);
     itemRepository.save(item);
+    domainMetrics.recordReservationQueueWait(Duration.between(reservation.getCreatedAt(), now));
   }
 
   private ReservationResponse toResponse(Reservation reservation) {

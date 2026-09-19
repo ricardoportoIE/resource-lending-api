@@ -9,7 +9,7 @@ flowchart TB
     subgraph HTTP[HTTP boundary]
         Correlation[CorrelationIdFilter]
         JWT[SecurityFilter]
-        Controllers[Auth, Resource, Loan and Reservation controllers]
+        Controllers[Auth, Resource, Loan, Reservation and Report controllers]
         Problems[Global Problem Details handler]
     end
 
@@ -19,12 +19,13 @@ flowchart TB
         Loans[LoanWorkflowService]
         Reservations[ReservationService]
         Audit[AuditService]
+        Outbox[Outbox publisher and worker]
     end
 
     subgraph Persistence[Persistence boundary]
         Repositories[Internal JPA repositories]
         PostgreSQL[(PostgreSQL)]
-        Flyway[Flyway V1-V6]
+        Flyway[Flyway V1-V8]
     end
 
     Correlation --> JWT --> Controllers
@@ -35,11 +36,14 @@ flowchart TB
     Controllers -. exceptions .-> Problems
     Loans --> Audit
     Reservations --> Audit
+    Loans --> Outbox
+    Reservations --> Outbox
     Auth --> Repositories
     Catalogue --> Repositories
     Loans --> Repositories
     Reservations --> Repositories
     Audit --> Repositories
+    Outbox --> Repositories
     Repositories --> PostgreSQL
     Flyway --> PostgreSQL
 ```
@@ -168,14 +172,18 @@ Flyway owns the schema and Hibernate only validates it. Migrations are append-on
 3. resources and physical items;
 4. loans, policies and audit events;
 5. reservations and concurrency constraints;
-6. retirement of the superseded library model.
+6. retirement of the superseded library model;
+7. transactional Outbox and idempotent notification delivery;
+8. persistent command idempotency and exact response replay.
 
 V6 moves the original academic tables to PostgreSQL schema `legacy`. This preserves data and migration traceability while keeping the active `public` schema aligned with the current API.
 
 ## Operational model
 
-- Structured ECS logs carry `correlationId` without tokens or passwords.
+- Structured ECS logs carry `correlationId`, `traceId` and `spanId` without tokens or passwords.
+- HTTP requests, repositories, report queries and scheduled jobs emit OpenTelemetry spans over OTLP.
 - `/actuator/health` and probe groups are public for orchestrators.
-- metrics, Prometheus and info endpoints require `ADMIN`.
+- metrics, Prometheus and info endpoints require `ADMIN` during normal runs. Compose enables a separate loopback-only management chain so its internal Prometheus can scrape health and metrics.
+- Domain counters, gauges and histograms describe loan requests, overdue loans, reservation wait and workflow conflicts.
 - the final image contains only the runtime and application artifact and runs as user `app`.
-- Compose health checks gate API startup on PostgreSQL readiness.
+- Compose health checks gate API startup on PostgreSQL readiness and provisions Prometheus, Grafana and Jaeger.

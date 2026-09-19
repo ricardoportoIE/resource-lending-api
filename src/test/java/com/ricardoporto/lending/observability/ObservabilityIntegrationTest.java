@@ -48,6 +48,10 @@ class ObservabilityIntegrationTest extends PostgresIntegrationTest {
             .getResponse()
             .getContentAsString();
     assertTrue(metrics.contains("jvm_memory"));
+    assertTrue(metrics.contains("loans_requested_total"));
+    assertTrue(metrics.contains("loans_overdue"));
+    assertTrue(metrics.contains("reservation_queue_wait_seconds"));
+    assertTrue(metrics.contains("loan_transition_conflicts_total"));
   }
 
   @Test

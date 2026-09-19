@@ -5,7 +5,7 @@
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-27_passing-brightgreen)
-![Coverage](https://img.shields.io/badge/line_coverage-85.64%25-brightgreen)
+![Coverage](https://img.shields.io/badge/line_coverage-85.60%25-brightgreen)
 
 A production-oriented REST API for lending shared organisational resources: books, laptops, rooms, tools and other individually tracked assets. It handles catalogue inventory, policy-driven loans, FIFO reservations and simultaneous claims without lending the same physical item twice.
 
@@ -23,10 +23,11 @@ This repository is also a modernization case study. An academic library CRUD app
 - Transactional Outbox notifications with idempotent delivery, retries and exponential backoff.
 - Persistent `Idempotency-Key` replay for duplicate-sensitive loan and reservation commands.
 - Staff operational dashboard, demand/utilization analytics and RFC 4180-compatible CSV exports.
+- OpenTelemetry traces across HTTP, repositories and scheduled jobs, with four domain metrics.
 - RFC 9457 Problem Details with stable error codes and correlation IDs.
 - Flyway-only PostgreSQL schema management with Hibernate validation.
 - Testcontainers integration and concurrency tests against PostgreSQL 17.
-- ECS-compatible JSON logs, Actuator probes and Prometheus metrics.
+- ECS-compatible JSON logs plus a provisioned Prometheus, Grafana and Jaeger stack.
 - Multi-stage non-root image, health-checked Docker Compose and GitHub Actions CI.
 - JaCoCo coverage gates and Spotless formatting enforcement.
 
@@ -46,7 +47,11 @@ flowchart LR
     Outbox --> Worker[Retrying notification worker]
     Worker --> External[Log or webhook adapter]
     Scheduler[Reservation expiry scheduler] --> Services
-    Observability[Actuator, Prometheus and ECS logs] -. observes .-> Services
+    Observability[Micrometer and OpenTelemetry] -. observes .-> Services
+    Observability --> Prometheus[Prometheus]
+    Observability --> Jaeger[Jaeger]
+    Prometheus --> Grafana[Grafana dashboard]
+    Jaeger --> Grafana
 ```
 
 The code is a feature-oriented modular monolith under `com.ricardoporto.lending`. Controllers depend on application services, services own transaction boundaries, repositories remain internal and JPA entities never cross the HTTP boundary.
@@ -84,7 +89,7 @@ PowerShell:
 Copy-Item .env.example .env
 ```
 
-Replace the three required placeholders in `.env` (`DB_USERNAME`, `DB_PASSWORD` and `JWT_SECRET`), then start the complete stack:
+Replace the four required placeholders in `.env` (`DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` and `GRAFANA_ADMIN_PASSWORD`), then start the complete stack:
 
 ```bash
 docker compose up --build
@@ -96,8 +101,10 @@ The database is started first and must pass its health check before the API star
 |---|---|---|
 | `http://localhost:8080/swagger-ui/index.html` | Interactive API documentation | Public |
 | `http://localhost:8080/v3/api-docs` | OpenAPI JSON | Public |
-| `http://localhost:8080/actuator/health` | Liveness and readiness | Public |
-| `http://localhost:8080/actuator/prometheus` | Prometheus metrics | `ADMIN` |
+| `http://localhost:8081/actuator/health` | Compose management health | Loopback only |
+| `http://localhost:9090` | Prometheus query UI | Loopback only |
+| `http://localhost:3000` | Provisioned Grafana dashboard | `.env` credentials |
+| `http://localhost:16686` | Jaeger trace explorer | Loopback only |
 
 Stop the stack while retaining database data:
 
@@ -121,7 +128,7 @@ PowerShell:
 .\mvnw.cmd clean verify
 ```
 
-The build starts an isolated `postgres:17.6-alpine` Testcontainer, applies every production migration from an empty database, runs 24 tests, packages the executable JAR, checks formatting and enforces at least 75% line and 35% branch coverage. The HTML report is generated at `target/site/jacoco/index.html`.
+The build starts an isolated `postgres:17.6-alpine` Testcontainer, applies every production migration from an empty database, runs the complete test suite, packages the executable JAR, checks formatting and enforces at least 75% line and 35% branch coverage. The HTML report is generated at `target/site/jacoco/index.html`.
 
 GitHub Actions repeats verification on every push and pull request to `main`, uploads the coverage report and builds the production image.
 
@@ -191,7 +198,7 @@ Every response includes `X-Correlation-ID`. A safe client-supplied ID is preserv
 | Security | Spring Security, BCrypt, Auth0 Java JWT 4.4.0 |
 | Database | PostgreSQL 17, Flyway |
 | Documentation | springdoc-openapi 2.8.8, Swagger UI |
-| Observability | Actuator, Micrometer Prometheus, ECS logging |
+| Observability | Micrometer, OpenTelemetry/OTLP, Prometheus 3, Grafana 13, Jaeger 2, ECS logging |
 | Testing | JUnit 5, MockMvc, Testcontainers 2.0.5 |
 | Quality and delivery | Maven Wrapper 3.9.9, Enforcer, Spotless, JaCoCo, Docker, GitHub Actions |
 
@@ -218,6 +225,12 @@ Runtime secrets are environment-only. `.env` is ignored by Git; the versioned `.
 | `IDEMPOTENCY_CLEANUP_MS` | No | Expired-record cleanup interval; `3600000` |
 | `LOG_FORMAT` | No | `ecs`; use `plain` for local human-readable logs |
 | `APP_PORT` | No | Host port `8080` in Docker Compose |
+| `MANAGEMENT_PORT` | No | Loopback-only Compose management port; `8081` |
+| `PROMETHEUS_PORT` | No | Loopback-only Prometheus port; `9090` |
+| `GRAFANA_PORT` | No | Loopback-only Grafana port; `3000` |
+| `JAEGER_UI_PORT` | No | Loopback-only Jaeger UI port; `16686` |
+| `GRAFANA_ADMIN_PASSWORD` | Yes in Compose | Local Grafana administrator password |
+| `TRACING_SAMPLING_PROBABILITY` | No | Trace sample ratio; Compose uses `1.0`, application default is `0.0` |
 
 ## Database evolution and modernization
 
@@ -237,6 +250,7 @@ The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the re
 | Async integration | Transactional Outbox, due-soon jobs, idempotent notification delivery and failed-event operations |
 | Reliable commands | Atomic idempotency claims, request fingerprinting and exact response replay |
 | Operational intelligence | Staff dashboards, current utilization, demand ranking, queue wait time and CSV export |
+| Distributed observability | OTLP traces, domain metrics and a provisioned Prometheus/Grafana/Jaeger stack |
 
 The project now lives in the professional GitHub account [`ricardoportoIE`](https://github.com/ricardoportoIE/resource-lending-api); the repository history retains the original authorship and the complete modernization journey.
 
@@ -244,13 +258,18 @@ The project now lives in the professional GitHub account [`ricardoportoIE`](http
 
 - [Architecture, domain model and concurrency flows](docs/architecture.md)
 - [Verified cURL workflow](docs/api-examples.md)
+- [Observability and troubleshooting runbook](docs/troubleshooting.md)
 - [Recruiter, CV and GitHub summary](docs/portfolio-summary.md)
 - [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md)
 - [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md)
 - [ADR-003: Resource and ResourceItem](docs/adr/003-resource-and-resource-item.md)
 - [ADR-004: Explicit loan workflow](docs/adr/004-explicit-loan-workflow.md)
 - [ADR-005: Reservations and concurrency](docs/adr/005-reservations-and-concurrency.md)
+- [ADR-006: Transactional Outbox](docs/adr/006-transactional-outbox.md)
+- [ADR-007: Command idempotency](docs/adr/007-command-idempotency.md)
+- [ADR-008: Operational reporting read model](docs/adr/008-operational-reporting-read-model.md)
+- [ADR-009: Distributed observability](docs/adr/009-distributed-observability.md)
 
 ## Scope boundaries
 
-The current MVP intentionally excludes e-mail notifications, distributed scheduling, rate limiting, cloud infrastructure and a frontend. Those are extension points, not features presented as complete. Access tokens remain valid until their short expiry after logout; refresh tokens are revoked server-side immediately.
+The current implementation uses a fake log/webhook notification adapter and a single-process scheduler. Cloud infrastructure, rate limiting and a frontend remain extension points rather than features presented as complete. Access tokens remain valid until their short expiry after logout; refresh tokens are revoked server-side immediately.
