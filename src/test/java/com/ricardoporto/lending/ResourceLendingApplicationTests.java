@@ -88,7 +88,7 @@ class ResourceLendingApplicationTests extends PostgresIntegrationTest {
         jdbcTemplate.queryForObject(
             "select count(*) from perfis where nome = 'ROLE_USER'", Integer.class);
 
-    assertEquals(10, successfulMigrations);
+    assertEquals(11, successfulMigrations);
     assertEquals(13, domainTables);
     assertEquals(8, preservedLegacyTables);
     assertEquals(21, requiredIndexes);

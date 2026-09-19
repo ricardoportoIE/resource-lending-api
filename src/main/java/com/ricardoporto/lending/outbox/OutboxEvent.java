@@ -49,6 +49,9 @@ public class OutboxEvent {
   @Column(name = "last_error")
   private String lastError;
 
+  @Column(name = "processing_token")
+  private UUID processingToken;
+
   @Column(name = "deduplication_key", nullable = false, unique = true)
   private String deduplicationKey;
 }
