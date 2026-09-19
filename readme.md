@@ -2,32 +2,32 @@
 
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
-![Maven 3.9.9](https://img.shields.io/badge/Maven-3.9.9-C71A36?logo=apachemaven&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-16_passing-brightgreen)
-![Modernisation](https://img.shields.io/badge/modernisation-phase_2_complete-blue)
+![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-20_passing-brightgreen)
+![Modernisation](https://img.shields.io/badge/modernisation-phase_3_complete-blue)
 
-A Java and Spring Boot REST API being re-engineered into a production-oriented platform for lending organisational resources. The project currently manages library-style clients, catalogue items and loans, while its staged roadmap expands the domain to equipment, reservations, policies, auditability and concurrency-safe workflows.
+A Java and Spring Boot REST API being re-engineered into a production-oriented platform for lending organisational resources. It currently manages library-style customers, catalogue exemplars and loans while its staged roadmap expands the domain to equipment, reservations, policies, auditability and concurrency-safe workflows.
 
 > Originally developed as a university library management project and re-engineered as a production-oriented resource lending API, with a redesigned domain, security model, transactional workflows, database migrations, automated testing and containerised delivery.
 
-The sentence above describes the target journey. This repository reports completed work and remaining work separately so that the documentation never presents roadmap items as shipped features.
+That statement describes the target journey. Completed work and planned capabilities are deliberately separated below so the repository never presents roadmap items as shipped features.
 
 ## Why this project
 
-Lending systems look simple until availability, authorisation and simultaneous requests meet. This project is designed to demonstrate backend engineering beyond CRUD: explicit business rules, secure authentication, relational consistency, reproducible integration tests and, in later phases, concurrency control for the last available item.
+Lending systems look simple until availability, authorisation and simultaneous requests meet. This project demonstrates incremental backend modernisation: secure configuration, relational consistency, explicit architecture boundaries, reproducible integration tests and, in later phases, domain state machines and concurrency control for the last available item.
 
 ## Current capabilities
 
-- REST endpoints for clients, catalogue exemplars and loans.
-- JWT-based login and stateless Spring Security filter chain.
-- BCrypt password verification.
-- DTO-based request and response models for the main controllers.
-- Bean Validation and central exception handling.
-- OpenAPI documentation with Swagger UI.
-- PostgreSQL persistence through Spring Data JPA and Hibernate.
-- Versioned database migrations with Flyway and `ddl-auto=validate`.
-- Integration, migration and security tests against a disposable PostgreSQL 17 container.
-- Reproducible Java 21 bytecode, Maven Wrapper and automated formatting checks.
+- Versioned REST endpoints for customers, catalogue exemplars and loans.
+- JWT-based login and a stateless Spring Security filter chain.
+- Persisted user registration with BCrypt hashing and duplicate-email protection.
+- Feature-oriented modular monolith under `com.ricardoporto.lending`.
+- Thin controllers backed by transactional application services.
+- Explicit DTO mappers; JPA entities do not cross the HTTP boundary.
+- RFC 9457 Problem Details for validation, not-found, conflict and internal errors.
+- PostgreSQL persistence managed by Flyway and validated by Hibernate.
+- Integration, migration, security and architecture tests against PostgreSQL 17.
+- Reproducible Java 21 build, Maven Wrapper and automated formatting checks.
 - Runtime credentials and secrets supplied exclusively through environment variables.
 
 ## Modernisation status
@@ -37,28 +37,43 @@ Lending systems look simple until availability, authorisation and simultaneous r
 | 0 — Audit and baseline | Complete | Legacy domain, endpoints, risks and test behaviour mapped |
 | 1 — Hygiene, security and build | Complete | Java 21 baseline, externalised secrets, reproducible build, Testcontainers and formatting gate |
 | 2 — PostgreSQL and Flyway | Complete | PostgreSQL, versioned migrations, constraints, indexes and schema validation |
-| 3 — Architecture and error contracts | Next | Feature modules, thin controllers, DTO boundaries and consistent errors |
-| 4–7 — Security and domain | Planned | RBAC, inventory, lending workflow, reservations and concurrency |
+| 3 — Architecture and error contracts | Complete | Professional package, feature modules, transactional services, DTO boundaries and RFC 9457 errors |
+| 4 — Authentication and RBAC | Next | Refresh-token lifecycle, roles, ownership and authorization tests |
+| 5–7 — Domain workflows | Planned | Inventory, lending workflow, reservations and concurrency |
 | 8–10 — Operations and portfolio | Planned | Observability, Docker Compose, CI and final architecture documentation |
 
-The current code still uses the original package namespace. Renaming and reorganising it into the target modular monolith belongs to Phase 3, keeping each change reviewable.
-
-## Architecture today
+## Architecture
 
 ```mermaid
 flowchart LR
     Client[API client] --> Security[Spring Security + JWT filter]
-    Security --> Controllers[REST controllers + validation]
-    Controllers --> Domain[DTO mapping + domain entities]
-    Controllers --> Repositories[Spring Data repositories]
-    Security --> Auth[Authentication service + user repository]
+    Security --> Controllers[Thin REST controllers]
+    Controllers --> Services[Transactional application services]
+    Services --> Mappers[Explicit response mappers]
+    Services --> Repositories[Internal Spring Data repositories]
     Repositories --> DB[(PostgreSQL)]
-    Auth --> DB
     Flyway[Flyway migrations] --> DB
+    Controllers -. failures .-> Errors[RFC 9457 exception handler]
+    Errors --> Client
     OpenAPI[Swagger UI / OpenAPI] --> Controllers
 ```
 
-The test suite exercises the same Spring application and a real PostgreSQL engine. Testcontainers creates an isolated database for the Maven process, Flyway builds it from zero, Hibernate validates the resulting schema, and the container is removed when the process exits.
+```text
+com.ricardoporto.lending
+├── auth       login and email-confirmation use cases
+├── customer   current borrower model and API
+├── resource   current catalogue/exemplar model and API
+├── loan       current lending model and API
+├── user       identity persistence and registration
+└── shared
+    ├── config
+    ├── exception
+    └── security
+```
+
+Controllers depend only on application services. Services own transaction boundaries and coordinate repositories. Spring Data REST was removed so repositories cannot accidentally expose entities outside the documented API. A structural test protects the controller boundary.
+
+The decision and trade-offs are recorded in [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md).
 
 ## Technology baseline
 
@@ -67,7 +82,7 @@ The test suite exercises the same Spring application and a real PostgreSQL engin
 | Language | Java 21 LTS |
 | Framework | Spring Boot 3.4.4, Spring Web, Spring Data JPA |
 | Security | Spring Security, BCrypt, Auth0 Java JWT 4.4.0 |
-| Database | PostgreSQL 17, Flyway migrations, Hibernate schema validation |
+| Database | PostgreSQL 17, Flyway, Hibernate schema validation |
 | API documentation | springdoc-openapi 2.8.8 |
 | Testing | JUnit 5, Spring Boot Test, MockMvc, Testcontainers 2.0.5 |
 | Build and quality | Maven Wrapper 3.9.9, Maven Enforcer, Spotless 3.10.2 |
@@ -77,7 +92,7 @@ The test suite exercises the same Spring application and a real PostgreSQL engin
 Requirements:
 
 - Java 21 or newer;
-- Docker Desktop or another Docker-compatible engine running.
+- Docker Desktop or another Docker-compatible engine.
 
 ```bash
 ./mvnw clean verify
@@ -89,7 +104,7 @@ On Windows:
 .\mvnw.cmd clean verify
 ```
 
-No locally installed database and no database credentials are required for tests. The command starts a pinned `postgres:17.6-alpine` container, applies the production migration and test-only fixtures, runs all 16 tests, checks formatting and packages the executable JAR.
+No locally installed database or database credentials are required. The command starts a pinned `postgres:17.6-alpine` container, applies production migrations and test-only fixtures, runs all 20 tests, checks formatting and packages the executable JAR.
 
 ## Run the API locally
 
@@ -105,13 +120,13 @@ PowerShell equivalent:
 Copy-Item .env.example .env
 ```
 
-Replace every placeholder in `.env`, start a PostgreSQL instance matching `DB_URL`, and run:
+Replace every placeholder in `.env`, start PostgreSQL according to `DB_URL`, then run:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Swagger UI is then available at `http://localhost:8080/swagger-ui/index.html`.
+Swagger UI is available at `http://localhost:8080/swagger-ui/index.html`.
 
 ### Environment variables
 
@@ -127,73 +142,83 @@ Swagger UI is then available at `http://localhost:8080/swagger-ui/index.html`.
 
 ## Database migrations
 
-Flyway is the only source of truth for the runtime schema. The initial migration is located at:
+Flyway is the only source of truth for the runtime schema. The initial production migration is located at:
 
 ```text
 src/main/resources/db/migration/V1__initial_schema.sql
 ```
 
-It creates the legacy-compatible domain tables together with explicit primary keys, foreign keys, uniqueness rules, checks and indexes. Hibernate runs with `ddl-auto=validate`, so a mismatch fails application startup instead of silently changing the database.
+It creates the legacy-compatible domain tables with primary keys, foreign keys, uniqueness rules, checks and indexes. Hibernate runs with `ddl-auto=validate`, so a mismatch fails startup rather than silently modifying the database.
 
-Synthetic accounts are isolated in `src/test/resources/db/testdata/R__test_data.sql`. That location is enabled only by the `test` profile and is never packaged as production seed data.
+Synthetic accounts live in `src/test/resources/db/testdata/R__test_data.sql`. That location is enabled only by the `test` profile and is never packaged as production seed data.
 
-## API discovery
+## API and errors
 
-The application exposes its OpenAPI contract at:
+The generated contract and interactive documentation are available at:
 
 ```text
 GET /v3/api-docs
 GET /swagger-ui/index.html
 ```
 
-The current API uses `/api/v1` for the explicitly implemented controllers. The generated OpenAPI document is the source of truth while the endpoint design is progressively modernised.
+Explicit controllers use the `/api/v1` prefix. Existing Portuguese route names are retained during the bounded migration and will be replaced alongside their domain models in later phases.
+
+Errors use `application/problem+json` and follow RFC 9457. Stable `code` values let clients react without parsing human-readable text; validation failures also include a field-level `errors` map.
+
+```json
+{
+  "type": "https://resource-lending-api.dev/problems/resource-not-found",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Customer with identifier 999 was not found.",
+  "instance": "/api/v1/clientes/999",
+  "code": "RESOURCE_NOT_FOUND",
+  "timestamp": "2026-09-19T00:00:00Z"
+}
+```
+
+Unexpected exceptions are logged internally and return a generic response without exposing stack traces or internal exception messages.
 
 ## Build quality
 
-`mvn verify` enforces the minimum Java and Maven versions and runs Spotless after the tests. Formatting can also be checked or applied directly:
+`mvn verify` enforces the minimum Java and Maven versions, compiles, tests, packages the application and runs Spotless. Formatting can also be checked or applied independently:
 
 ```bash
 ./mvnw spotless:check
 ./mvnw spotless:apply
 ```
 
-The executable artifact is produced at:
-
-```text
-target/resource-lending-api-0.0.1-SNAPSHOT.jar
-```
+The executable artifact is produced at `target/resource-lending-api-0.0.1-SNAPSHOT.jar`.
 
 ## Security posture
 
-Completed in Phase 1:
+Completed through Phase 3:
 
-- removed versioned database credentials and default JWT secrets;
-- removed production seed accounts;
-- replaced custom credential parsing with Spring Boot datasource configuration;
-- generated test secrets at runtime;
-- isolated integration data inside disposable containers;
-- ignored local environment and secret files.
+- secrets and database credentials are externalised;
+- production seed accounts were removed;
+- integration secrets are generated at runtime;
+- repositories are internal and cannot be exposed automatically;
+- registration normalises e-mail, hashes passwords and rejects duplicates;
+- API failures do not leak stack traces or internal exception details.
 
-Known limitations are intentionally visible:
+Known limitations remain visible:
 
-- refresh-token rotation, logout and revocation are not implemented yet;
-- the registration and email-confirmation flows remain transitional legacy code;
-- fine-grained RBAC and ownership checks require Phase 4;
-- repository exposure and the legacy exception contract require the architectural refactor.
+- access-token refresh, logout and revocation are not implemented yet;
+- email confirmation uses a transitional environment-supplied token and is not tied to a persisted lifecycle;
+- fine-grained RBAC and ownership checks belong to Phase 4;
+- the current customer, exemplar and loan models remain transitional until the domain phases.
 
-This baseline is suitable for continued engineering work, not yet for production deployment.
+This baseline supports continued engineering work but is not presented as production-ready.
 
 ## Roadmap highlights
 
-1. Reorganise the codebase as a modular monolith under `com.ricardoporto.lending`.
-2. Introduce a consistent RFC 9457 error contract and clear transactional service boundaries.
-3. Introduce users, roles, resource catalogue and individually lendable resource items.
-4. Implement access/refresh token rotation, revocation, RBAC and ownership rules.
-5. Model explicit loan and reservation state machines with policy-driven due dates.
-6. Protect the last available item with transactional locking and a reproducible concurrency test.
-7. Add audit events, correlation IDs and Actuator health checks.
-8. Deliver Docker Compose, GitHub Actions, JaCoCo and verified API examples.
+1. Implement refresh-token rotation, revocation, RBAC and ownership rules.
+2. Introduce the resource catalogue and individually lendable resource items.
+3. Model explicit loan and reservation state machines with policy-driven due dates.
+4. Protect the last available item with transactional locking and a reproducible concurrency test.
+5. Add audit events, correlation IDs and Actuator health checks.
+6. Deliver Docker Compose, GitHub Actions, JaCoCo and verified API examples.
 
 ## Repository history
 
-The Git history and original authorship are preserved. The earlier academic implementation is part of the engineering story: each modernisation phase starts from measured behaviour, introduces a bounded change and verifies the result before moving forward.
+The Git history and original authorship are preserved. The academic implementation remains part of the engineering story: each modernisation phase starts from measured behaviour, introduces a bounded change and verifies the result before moving forward.
