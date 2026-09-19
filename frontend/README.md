@@ -1,6 +1,6 @@
 # Resource Lending Console
 
-React and TypeScript operational UI for the Resource Lending API. It supports student self-registration and login, catalogue browsing, idempotent loan requests, reservations, role-aware staff transitions, operational metrics and CSV export.
+React and TypeScript operational UI for the Resource Lending API. It supports student self-registration, e-mail confirmation, login, password recovery, catalogue browsing, idempotent loan requests, reservations, role-aware staff transitions, operational metrics and CSV export.
 
 ## Local development
 
@@ -22,4 +22,4 @@ npm run build
 npm audit --audit-level=moderate
 ```
 
-Access and refresh tokens are held in `sessionStorage`, so closing the tab clears the browser session. Staff and administrator accounts are provisioned outside public registration to prevent role escalation.
+Access and refresh tokens are held in `sessionStorage`, so closing the tab clears the browser session. Signing out also calls the server-side access-token revocation endpoint. Staff and administrator accounts are provisioned outside public registration to prevent role escalation.

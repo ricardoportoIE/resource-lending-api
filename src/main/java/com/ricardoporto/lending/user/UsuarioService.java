@@ -1,5 +1,6 @@
 package com.ricardoporto.lending.user;
 
+import com.ricardoporto.lending.identity.IdentityService;
 import com.ricardoporto.lending.shared.exception.ApiException;
 import java.util.List;
 import java.util.Locale;
@@ -14,14 +15,17 @@ public class UsuarioService {
   private final UsuarioRepository usuarioRepository;
   private final PerfilRepository perfilRepository;
   private final PasswordEncoder passwordEncoder;
+  private final IdentityService identityService;
 
   public UsuarioService(
       UsuarioRepository usuarioRepository,
       PerfilRepository perfilRepository,
-      PasswordEncoder passwordEncoder) {
+      PasswordEncoder passwordEncoder,
+      IdentityService identityService) {
     this.usuarioRepository = usuarioRepository;
     this.perfilRepository = perfilRepository;
     this.passwordEncoder = passwordEncoder;
+    this.identityService = identityService;
   }
 
   @Transactional
@@ -35,7 +39,7 @@ public class UsuarioService {
     var usuario = new Usuario();
     usuario.setEmail(normalizedEmail);
     usuario.setSenha(passwordEncoder.encode(request.password()));
-    usuario.setConfirmado(true);
+    usuario.setConfirmado(false);
     var studentProfile =
         perfilRepository
             .findByNome(Role.STUDENT.authority())
@@ -45,6 +49,7 @@ public class UsuarioService {
                         "The STUDENT role was not initialized by the database migration."));
     usuario.setPerfis(List.of(studentProfile));
     var saved = usuarioRepository.save(usuario);
+    identityService.sendEmailConfirmation(saved);
     return new UserResponse(saved.getId(), saved.getEmail(), saved.isConfirmado());
   }
 }

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.auth0.jwt.JWT;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ricardoporto.lending.support.PostgresIntegrationTest;
@@ -42,6 +43,9 @@ class SecurityConfigTest extends PostgresIntegrationTest {
     assertNotNull(tokens.get("accessToken").textValue());
     assertNotNull(tokens.get("refreshToken").textValue());
     assertTrue(tokens.get("expiresIn").longValue() > 0);
+    var accessToken = JWT.decode(tokens.get("accessToken").textValue());
+    assertEquals("primary", accessToken.getKeyId());
+    assertNotNull(accessToken.getId());
     var rawRefreshToken = tokens.get("refreshToken").textValue();
     var plaintextMatches =
         jdbcTemplate.queryForObject(
@@ -119,11 +123,12 @@ class SecurityConfigTest extends PostgresIntegrationTest {
                 .content(credentials(email, "secure-password")))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.email").value(email))
+        .andExpect(jsonPath("$.confirmed").value(false))
         .andExpect(jsonPath("$.password").doesNotExist());
 
     var saved = usuarioRepository.findByEmail(email);
     assertNotNull(saved);
-    assertTrue(saved.isEnabled());
+    assertTrue(!saved.isEnabled());
     assertTrue(passwordEncoder.matches("secure-password", saved.getSenha()));
     assertTrue(
         saved.getAuthorities().stream()
@@ -153,6 +158,37 @@ class SecurityConfigTest extends PostgresIntegrationTest {
         .andExpect(status().isNoContent());
 
     refresh(refreshToken, 401);
+  }
+
+  @Test
+  void authenticatedCallerCanRevokeAnAccessToken() throws Exception {
+    var accessToken = login("student2@email.com").get("accessToken").textValue();
+    mvc.perform(
+            post("/api/v1/auth/revoke").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+        .andExpect(status().isNoContent());
+
+    mvc.perform(get("/api/v1/resources").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void sendsSecurityHeaders() throws Exception {
+    mvc.perform(get("/actuator/health"))
+        .andExpect(status().isOk())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                .string("X-Content-Type-Options", "nosniff"))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                .string("Referrer-Policy", "no-referrer"))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                .string("Cross-Origin-Resource-Policy", "same-origin"))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                .string(
+                    "Content-Security-Policy",
+                    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"));
   }
 
   private String bearer(String email) throws Exception {

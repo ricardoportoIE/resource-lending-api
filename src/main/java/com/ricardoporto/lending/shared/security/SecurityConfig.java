@@ -20,6 +20,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -67,6 +69,14 @@ public class SecurityConfig {
   }
 
   @Bean
+  public FilterRegistrationBean<RateLimitFilter> disableRateLimitFilterAutoRegistration(
+      RateLimitFilter filter) {
+    var registration = new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
+  }
+
+  @Bean
   public CorsConfigurationSource corsConfigurationSource(
       @Value("${api.security.cors.allowed-origins:}") String configuredOrigins) {
     var origins =
@@ -89,7 +99,8 @@ public class SecurityConfig {
 
   @Bean
   @Order(2)
-  public SecurityFilterChain filterChain(HttpSecurity http, IdempotencyFilter idempotencyFilter)
+  public SecurityFilterChain filterChain(
+      HttpSecurity http, IdempotencyFilter idempotencyFilter, RateLimitFilter rateLimitFilter)
       throws Exception {
     http.csrf(csrf -> csrf.disable())
         .cors(cors -> {})
@@ -113,7 +124,11 @@ public class SecurityConfig {
                         "/api/v1/auth/register",
                         "/api/v1/auth/login",
                         "/api/v1/auth/refresh",
-                        "/api/v1/auth/logout")
+                        "/api/v1/auth/logout",
+                        "/api/v1/auth/email/confirm",
+                        "/api/v1/auth/email/resend",
+                        "/api/v1/auth/password/forgot",
+                        "/api/v1/auth/password/reset")
                     .permitAll()
                     .requestMatchers(
                         HttpMethod.POST,
@@ -135,7 +150,24 @@ public class SecurityConfig {
                 exceptions
                     .authenticationEntryPoint(authenticationEntryPoint)
                     .accessDeniedHandler(accessDeniedHandler))
+        .headers(
+            headers -> {
+              headers.contentSecurityPolicy(
+                  csp ->
+                      csp.policyDirectives(
+                          "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"));
+              headers.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER));
+              headers.addHeaderWriter(
+                  new StaticHeadersWriter(
+                      "Permissions-Policy",
+                      "camera=(), microphone=(), geolocation=(), payment=()"));
+              headers.addHeaderWriter(
+                  new StaticHeadersWriter("Cross-Origin-Resource-Policy", "same-origin"));
+              headers.httpStrictTransportSecurity(
+                  hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000));
+            })
         .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(rateLimitFilter, SecurityFilter.class)
         .addFilterAfter(idempotencyFilter, SecurityFilter.class);
     return http.build();
   }

@@ -26,7 +26,7 @@ flowchart TB
     subgraph Persistence[Persistence boundary]
         Repositories[Internal JPA repositories]
         PostgreSQL[(PostgreSQL)]
-        Flyway[Flyway V1-V8]
+        Flyway[Flyway V1-V9]
     end
 
     Proxy --> Correlation
@@ -161,7 +161,9 @@ Open reservations are unique per user/resource. A scheduled scanner expires miss
 
 ## Security and token lifecycle
 
-Access tokens are signed JWTs with a 15-minute lifetime. Refresh tokens are 48-byte opaque values; only their SHA-256 hashes are persisted. Rotation locks the database row, revokes the presented token and issues a replacement. Reusing a revoked token revokes every active refresh token for that user.
+Access tokens are signed JWTs with a 15-minute lifetime, active signing-key identifier, unique `jti` and account security version. A key ring accepts overlapping keys during rotation; explicit logout/revocation persists the `jti` until token expiry. Refresh tokens are 48-byte opaque values; only their SHA-256 hashes are persisted. Rotation locks the database row, revokes the presented token and issues a replacement. Reusing a revoked token revokes every active refresh token for that user.
+
+Public registration creates an unconfirmed `STUDENT`. Confirmation and password recovery use hashed, expiring, single-use identity tokens delivered through the Outbox. Password reset changes the security version and revokes refresh tokens, invalidating every older session. A fixed-window limiter protects commands by direct IP or authenticated user, while failed passwords progressively lock the account.
 
 URL rules provide early rejection, while method security and ownership checks protect service calls even when they are not reached through the expected controller.
 
@@ -176,7 +178,8 @@ Flyway owns the schema and Hibernate only validates it. Migrations are append-on
 5. reservations and concurrency constraints;
 6. retirement of the superseded library model;
 7. transactional Outbox and idempotent notification delivery;
-8. persistent command idempotency and exact response replay.
+8. persistent command idempotency and exact response replay;
+9. identity tokens, progressive lock state and access-token revocation.
 
 V6 moves the original academic tables to PostgreSQL schema `legacy`. This preserves data and migration traceability while keeping the active `public` schema aligned with the current API.
 

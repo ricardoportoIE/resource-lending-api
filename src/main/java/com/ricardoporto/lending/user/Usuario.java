@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import lombok.Getter;
@@ -37,6 +38,15 @@ public class Usuario implements UserDetails {
 
   private String senha;
   private boolean isConfirmado;
+
+  @Column(name = "failed_login_attempts", nullable = false)
+  private int failedLoginAttempts;
+
+  @Column(name = "locked_until")
+  private Instant lockedUntil;
+
+  @Column(name = "security_version", nullable = false)
+  private int securityVersion;
 
   @ManyToMany(fetch = FetchType.EAGER)
   @JoinTable(
@@ -67,7 +77,7 @@ public class Usuario implements UserDetails {
 
   @Override
   public boolean isAccountNonLocked() {
-    return true;
+    return lockedUntil == null || !lockedUntil.isAfter(Instant.now());
   }
 
   @Override

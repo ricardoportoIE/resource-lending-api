@@ -84,6 +84,8 @@ label { display: block; margin: 22px 0; color: #4d5b55; font-size: 11px; font-we
 label input { display: block; width: 100%; margin-top: 7px; padding: 13px; border: 1px solid #d3d8d3; border-radius: 7px; outline: none; background: white; }
 .login-panel small { display: block; margin-top: 20px; color: #8a948f; text-align: center; }
 .form-error { margin: 12px 0; color: #a44d2e; font-size: 12px; }
-.auth-switch { display: block; margin: 17px auto 0; border: 0; background: transparent; color: #315f50; font-size: 12px; font-weight: 700; }
+.form-success { margin: 12px 0; color: #286550; font-size: 12px; }
+.auth-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px 15px; margin-top: 14px; }
+.auth-links button { border: 0; background: transparent; color: #315f50; font-size: 11px; font-weight: 700; }
 @media (max-width: 900px) { .app-shell { grid-template-columns: 1fr; }.sidebar { position: static; width: 100%; height: auto; padding: 14px 18px; flex-direction: row; overflow-x: auto; }.sidebar > .brand, .profile-block, .nav-caption { display: none; }nav { margin: 0; flex-direction: row; }.nav-button { white-space: nowrap; }.nav-button i { display: none; }main { padding: 28px 20px 50px; }.mobile-brand { display: block; margin-bottom: 38px; }.metrics { grid-template-columns: repeat(2, 1fr); }.login-layout { grid-template-columns: 1fr; }.login-story { min-height: 42vh; }.story-metric { display: none; } }
 @media (max-width: 560px) { .page-header { align-items: start; flex-direction: column; }.metrics { grid-template-columns: 1fr 1fr; }.util-row { grid-template-columns: 1fr 50px; }.util-row .bar { grid-column: 1 / -1; grid-row: 2; }.login-story { padding: 32px 25px; }.story-copy h1 { font-size: 43px; } }

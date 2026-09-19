@@ -4,8 +4,8 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/backend_tests-29_passing-brightgreen)
-![Coverage](https://img.shields.io/badge/line_coverage-85.74%25-brightgreen)
+![Tests](https://img.shields.io/badge/backend_tests-37_passing-brightgreen)
+![Coverage](https://img.shields.io/badge/line_coverage-87.22%25-brightgreen)
 
 A production-oriented REST API for lending shared organisational resources: books, laptops, rooms, tools and other individually tracked assets. It handles catalogue inventory, policy-driven loans, FIFO reservations and simultaneous claims without lending the same physical item twice.
 
@@ -16,7 +16,7 @@ This repository is also a modernization case study. An academic library CRUD app
 - Explicit loan state machine instead of a generic status update.
 - Pessimistic row locking plus partial unique indexes for last-item concurrency safety.
 - FIFO reservation queue with ready windows, expiry and automatic promotion on return.
-- Short-lived JWT access tokens and opaque, hashed, rotating refresh tokens with reuse detection.
+- Short-lived, revocable JWT access tokens and opaque, hashed, rotating refresh tokens with reuse detection.
 - `STUDENT`, `STAFF` and `ADMIN` authorization at both HTTP and service boundaries.
 - Policy-driven due dates and active-loan limits by role and resource type.
 - Transactional, immutable audit events for domain transitions.
@@ -25,11 +25,13 @@ This repository is also a modernization case study. An academic library CRUD app
 - Staff operational dashboard, demand/utilization analytics and RFC 4180-compatible CSV exports.
 - OpenTelemetry traces across HTTP, repositories and scheduled jobs, with four domain metrics.
 - Responsive React/TypeScript console for borrowers and role-aware staff operations.
+- Progressive login lock, per-IP/user rate limits and one-time identity recovery flows.
+- JWT signing-key rotation, explicit access revocation and session invalidation on password reset.
 - RFC 9457 Problem Details with stable error codes and correlation IDs.
 - Flyway-only PostgreSQL schema management with Hibernate validation.
 - Testcontainers integration and concurrency tests against PostgreSQL 17.
 - ECS-compatible JSON logs plus a provisioned Prometheus, Grafana and Jaeger stack.
-- Multi-stage non-root image, health-checked Docker Compose and GitHub Actions CI.
+- Multi-stage non-root images, health-checked Docker Compose and GitHub Actions CI/SAST/DAST.
 - JaCoCo coverage gates and Spotless formatting enforcement.
 
 ## Architecture at a glance
@@ -142,7 +144,8 @@ All business endpoints are versioned under `/api/v1`.
 
 | Area | Endpoints |
 |---|---|
-| Authentication | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`; `GET /users/me` |
+| Authentication | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/revoke`; `GET /users/me` |
+| Identity recovery | `POST /auth/email/confirm`, `/auth/email/resend`, `/auth/password/forgot`, `/auth/password/reset` |
 | Catalogue | `GET/POST /resources`, `GET/PATCH /resources/{id}` |
 | Inventory | `POST /resources/{id}/items`, `PATCH /resource-items/{id}/status` |
 | Loans | `POST/GET /loans`, `GET /loans/{id}` |
@@ -172,7 +175,9 @@ Loan creation, approval, collection, return and reservation creation accept an o
 | Read protected operational endpoints | No | No | Yes |
 | Read dashboards and export reports | No | Yes | Yes |
 
-Unauthenticated requests return `401`; authenticated callers without permission return `403`. Students cannot select another borrower when requesting a loan.
+Unauthenticated requests return `401`; authenticated callers without permission return `403`; exhausted request windows return `429` with `RateLimit-*` and `Retry-After` headers. Students cannot select another borrower when requesting a loan.
+
+Public registration always creates an unconfirmed `STUDENT`. Confirmation and password-reset requests publish one-time tokens through the transactional Outbox without revealing whether a recovery e-mail exists. Repeated login failures apply an exponentially longer temporary lock.
 
 ## Error contract
 
@@ -199,7 +204,7 @@ Every response includes `X-Correlation-ID`. A safe client-supplied ID is preserv
 |---|---|
 | Language and framework | Java 21, Spring Boot 3.4.4 |
 | HTTP and persistence | Spring Web, Spring Data JPA, Hibernate validation |
-| Security | Spring Security, BCrypt, Auth0 Java JWT 4.4.0 |
+| Security | Spring Security, BCrypt, rotating/revocable Auth0 JWT, rate limiting, OWASP ZAP, CodeQL |
 | Database | PostgreSQL 17, Flyway |
 | Documentation | springdoc-openapi 2.8.8, Swagger UI |
 | Frontend | React 19, TypeScript 7, Vite 8, unprivileged Nginx |
@@ -217,7 +222,17 @@ Runtime secrets are environment-only. `.env` is ignored by Git; the versioned `.
 | `DB_USERNAME` | Yes | PostgreSQL user |
 | `DB_PASSWORD` | Yes | PostgreSQL password |
 | `JWT_SECRET` | Yes | HMAC secret with at least 32 random characters |
+| `JWT_ACTIVE_KID` | No | Active JWT signing key identifier; `primary` |
+| `JWT_KEYS` | No | Rotation ring as comma-separated `kid:secret` entries; blank uses `JWT_SECRET` |
 | `CORS_ALLOWED_ORIGINS` | No | Empty means browser cross-origin access is denied |
+| `RATE_LIMIT_REQUESTS` | No | General requests per window and identity; `300` |
+| `AUTH_RATE_LIMIT_REQUESTS` | No | Authentication commands per IP/window; `20` |
+| `RATE_LIMIT_WINDOW` | No | Fixed limiter window; `PT1M` |
+| `LOGIN_LOCK_THRESHOLD` | No | Failures before progressive lock begins; `5` |
+| `LOGIN_LOCK_BASE_DURATION` | No | Initial account lock duration; `PT1M` |
+| `LOGIN_LOCK_MAX_DURATION` | No | Maximum progressive lock duration; `PT1H` |
+| `EMAIL_CONFIRMATION_TTL` | No | One-time confirmation token lifetime; `P1D` |
+| `PASSWORD_RESET_TTL` | No | One-time password-reset token lifetime; `PT30M` |
 | `RESERVATION_READY_WINDOW` | No | `P2D` |
 | `RESERVATION_EXPIRY_SCAN_MS` | No | `60000` |
 | `OUTBOX_POLL_MS` | No | Delivery worker interval; `5000` |
@@ -240,7 +255,7 @@ Runtime secrets are environment-only. `.env` is ignored by Git; the versioned `.
 
 ## Database evolution and modernization
 
-Flyway is the only schema authority and Hibernate runs with `ddl-auto=validate`. Eight versioned migrations introduce authentication, inventory, loan policies, audit events, reservations, concurrency constraints, the transactional Outbox and command idempotency.
+Flyway is the only schema authority and Hibernate runs with `ddl-auto=validate`. Nine versioned migrations introduce authentication, inventory, loan policies, audit events, reservations, concurrency constraints, the transactional Outbox, command idempotency and identity security controls.
 
 The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the replacement domain became complete. Migration V6 moves its tables into a dedicated `legacy` schema rather than dropping them, preserving historical data while keeping the active `public` schema and OpenAPI contract focused on resources, items, loans and reservations.
 
@@ -258,6 +273,7 @@ The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the re
 | Operational intelligence | Staff dashboards, current utilization, demand ranking, queue wait time and CSV export |
 | Distributed observability | OTLP traces, domain metrics and a provisioned Prometheus/Grafana/Jaeger stack |
 | Demonstrable product | Role-aware React console for catalogue, lending, reservations and operations |
+| Applied security | Recovery and confirmation, abuse controls, JWT rotation/revocation, secure headers and automated security scanning |
 
 The project now lives in the professional GitHub account [`ricardoportoIE`](https://github.com/ricardoportoIE/resource-lending-api); the repository history retains the original authorship and the complete modernization journey.
 
@@ -267,6 +283,7 @@ The project now lives in the professional GitHub account [`ricardoportoIE`](http
 - [Verified cURL workflow](docs/api-examples.md)
 - [Observability and troubleshooting runbook](docs/troubleshooting.md)
 - [Frontend development and verification](frontend/README.md)
+- [Threat model and operational security requirements](docs/threat-model.md)
 - [Recruiter, CV and GitHub summary](docs/portfolio-summary.md)
 - [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md)
 - [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md)
@@ -278,7 +295,8 @@ The project now lives in the professional GitHub account [`ricardoportoIE`](http
 - [ADR-008: Operational reporting read model](docs/adr/008-operational-reporting-read-model.md)
 - [ADR-009: Distributed observability](docs/adr/009-distributed-observability.md)
 - [ADR-010: Operational frontend](docs/adr/010-operational-frontend.md)
+- [ADR-011: Applied security controls](docs/adr/011-applied-security-controls.md)
 
 ## Scope boundaries
 
-The current implementation uses a fake log/webhook notification adapter and a single-process scheduler. Cloud infrastructure and rate limiting remain extension points rather than features presented as complete. Access tokens remain valid until their short expiry after logout; refresh tokens are revoked server-side immediately.
+The current implementation uses a fake log/webhook notification adapter, an in-memory per-replica limiter and a single-process scheduler. Production multi-replica rate limiting, cloud infrastructure, MFA and a real e-mail provider remain explicit extension points. Access and refresh tokens can both be revoked server-side; signing keys support overlap during rotation.

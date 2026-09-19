@@ -35,8 +35,11 @@ public class SecurityFilter extends OncePerRequestFilter {
     var token = bearerToken(request);
     if (token != null) {
       try {
-        var usuario = repository.findByEmail(tokenService.getSubject(token));
-        if (usuario == null || !usuario.isEnabled()) {
+        var verifiedToken = tokenService.verify(token);
+        var usuario = repository.findByEmail(verifiedToken.subject());
+        if (usuario == null
+            || !usuario.isEnabled()
+            || usuario.getSecurityVersion() != verifiedToken.securityVersion()) {
           authenticationEntryPoint.commence(
               request, response, new BadCredentialsException("Invalid access token."));
           return;
@@ -55,6 +58,11 @@ public class SecurityFilter extends OncePerRequestFilter {
   }
 
   private String bearerToken(HttpServletRequest request) {
+    var header = request.getHeader("Authorization");
+    return header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
+  }
+
+  public static String bearerTokenValue(HttpServletRequest request) {
     var header = request.getHeader("Authorization");
     return header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
   }

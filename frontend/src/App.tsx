@@ -23,10 +23,11 @@ export default function App() {
   const [busy, setBusy] = useState(false);
 
   const signOut = useCallback(() => {
+    if (token) void api.logout(token, sessionStorage.getItem("refreshToken") ?? "");
     sessionStorage.clear();
     setToken("");
     setUser(undefined);
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -109,28 +110,63 @@ export default function App() {
 }
 
 function Login({ onLogin }: { onLogin: (token: string) => void }) {
+  type AuthMode = "login" | "register" | "forgot" | "reset" | "confirm";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [identityToken, setIdentityToken] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [registering, setRegistering] = useState(false);
+  const [mode, setMode] = useState<AuthMode>("login");
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setMessage("");
     try {
-      if (registering) await api.register(email, password);
+      if (mode === "register") {
+        await api.register(email, password);
+        setMode("confirm");
+        setMessage("Account created. Enter the token delivered by the notification adapter.");
+        return;
+      }
+      if (mode === "forgot") {
+        await api.forgotPassword(email);
+        setMode("reset");
+        setMessage("If the account exists, a reset token has been sent.");
+        return;
+      }
+      if (mode === "reset") {
+        await api.resetPassword(identityToken, password);
+        setMode("login");
+        setMessage("Password updated. You can now sign in.");
+        return;
+      }
+      if (mode === "confirm") {
+        await api.confirmEmail(identityToken);
+        setMode("login");
+        setMessage("Email confirmed. You can now sign in.");
+        return;
+      }
       const tokens = await api.login(email, password);
       sessionStorage.setItem("accessToken", tokens.accessToken);
       sessionStorage.setItem("refreshToken", tokens.refreshToken);
       onLogin(tokens.accessToken);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to sign in.");
+      setError(caught instanceof Error ? caught.message : "Unable to complete the request.");
     } finally {
       setLoading(false);
     }
   }
+
+  const copy = {
+    login: ["Welcome back", "Sign in to operations", "Use an account provisioned through the Resource Lending API."],
+    register: ["Get started", "Create your account", "New accounts receive student access after email confirmation."],
+    forgot: ["Account recovery", "Request a reset", "The response is identical whether or not the account exists."],
+    reset: ["Account recovery", "Choose a new password", "Paste the one-time token delivered to your notification channel."],
+    confirm: ["Verify identity", "Confirm your email", "Paste the one-time token delivered to your notification channel."],
+  }[mode];
 
   return (
     <div className="login-layout">
@@ -139,22 +175,25 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
         <div className="story-copy">
           <p className="eyebrow">Shared assets, clearly managed</p>
           <h1>Make every resource count.</h1>
-          <p>
-            A calm operational space for equipment, rooms and the people waiting to use them.
-          </p>
+          <p>A calm operational space for equipment, rooms and the people waiting to use them.</p>
         </div>
         <div className="story-metric"><strong>One inventory.</strong> From request to return.</div>
       </section>
       <section className="login-panel">
         <form onSubmit={submit}>
-          <p className="eyebrow">{registering ? "Get started" : "Welcome back"}</p>
-          <h2>{registering ? "Create your account" : "Sign in to operations"}</h2>
-          <p className="muted">{registering ? "New accounts receive student access." : "Use an account provisioned through the Resource Lending API."}</p>
-          <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></label>
-          <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+          <p className="eyebrow">{copy[0]}</p>
+          <h2>{copy[1]}</h2>
+          <p className="muted">{copy[2]}</p>
+          {["login", "register", "forgot"].includes(mode) && <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoFocus /></label>}
+          {["login", "register", "reset"].includes(mode) && <label>{mode === "reset" ? "New password" : "Password"}<input type="password" minLength={mode === "reset" ? 12 : 8} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>}
+          {["reset", "confirm"].includes(mode) && <label>One-time token<input value={identityToken} onChange={(event) => setIdentityToken(event.target.value)} required autoFocus /></label>}
+          {message && <div className="form-success">{message}</div>}
           {error && <div className="form-error">{error}</div>}
-          <button className="primary wide" disabled={loading}>{loading ? "Please wait…" : registering ? "Create and sign in" : "Continue"}</button>
-          <button type="button" className="auth-switch" onClick={() => { setRegistering(!registering); setError(""); }}>{registering ? "I already have an account" : "Create a student account"}</button>
+          <button className="primary wide" disabled={loading}>{loading ? "Please wait…" : "Continue"}</button>
+          <div className="auth-links">
+            {mode !== "login" && <button type="button" onClick={() => setMode("login")}>Back to sign in</button>}
+            {mode === "login" && <><button type="button" onClick={() => setMode("register")}>Create account</button><button type="button" onClick={() => setMode("forgot")}>Forgot password</button><button type="button" onClick={() => setMode("confirm")}>Confirm email</button></>}
+          </div>
           <small>Tokens remain in this browser tab and are cleared when you sign out.</small>
         </form>
       </section>

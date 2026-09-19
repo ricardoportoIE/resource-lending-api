@@ -35,7 +35,8 @@ async function request<T>(path: string, token: string, init: RequestInit = {}): 
     throw new ApiError(problem.detail ?? "The operation could not be completed.", response.status, problem.code);
   }
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  const body = await response.text();
+  return body ? (JSON.parse(body) as T) : (undefined as T);
 }
 
 const idempotencyKey = () => crypto.randomUUID();
@@ -51,6 +52,29 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+  forgotPassword: (email: string) =>
+    request<void>("/auth/password/forgot", "", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, newPassword: string) =>
+    request<void>("/auth/password/reset", "", {
+      method: "POST",
+      body: JSON.stringify({ token, newPassword }),
+    }),
+  confirmEmail: (token: string) =>
+    request<void>("/auth/email/confirm", "", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+  logout: (token: string, refreshToken: string) =>
+    Promise.allSettled([
+      request<void>("/auth/revoke", token, { method: "POST" }),
+      request<void>("/auth/logout", "", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken }),
+      }),
+    ]),
   me: (token: string) => request<CurrentUser>("/users/me", token),
   resources: (token: string) => request<Page<Resource>>("/resources?size=100&sort=name,asc", token),
   loans: (token: string) => request<Loan[]>("/loans", token),
