@@ -89,7 +89,11 @@ public class SecurityConfig {
                         "/api/v1/exemplares/**",
                         "/api/v1/clientes/**",
                         "/api/v1/resources/**",
-                        "/api/v1/resource-items/**")
+                        "/api/v1/resource-items/**",
+                        "/api/v1/loans/*/approve",
+                        "/api/v1/loans/*/reject",
+                        "/api/v1/loans/*/collect",
+                        "/api/v1/loans/*/return")
                     .hasAnyRole("STAFF", "ADMIN")
                     .requestMatchers(
                         HttpMethod.PATCH,

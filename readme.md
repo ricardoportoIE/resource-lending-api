@@ -3,8 +3,8 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-20_passing-brightgreen)
-![Modernisation](https://img.shields.io/badge/modernisation-phase_5_complete-blue)
+![Tests](https://img.shields.io/badge/tests-23_passing-brightgreen)
+![Modernisation](https://img.shields.io/badge/modernisation-phase_6_complete-blue)
 
 A Java and Spring Boot REST API being re-engineered into a production-oriented platform for lending organisational resources. It currently manages library-style customers, catalogue exemplars and loans while its staged roadmap expands the domain to equipment, reservations, policies, auditability and concurrency-safe workflows.
 
@@ -24,6 +24,8 @@ Lending systems look simple until availability, authorisation and simultaneous r
 - Role-based access control for `STUDENT`, `STAFF` and `ADMIN`, with borrower ownership checks.
 - A typed resource catalogue with independently tracked physical items and availability states.
 - Paginated catalogue queries filtered by resource type, category and item status.
+- An explicit loan state machine with dedicated request, approval, collection, return, rejection and cancellation operations.
+- Role- and resource-type loan policies, overdue blocking, active-loan limits and immutable audit events.
 - Feature-oriented modular monolith under `com.ricardoporto.lending`.
 - Thin controllers backed by transactional application services.
 - Explicit DTO mappers; JPA entities do not cross the HTTP boundary.
@@ -43,7 +45,8 @@ Lending systems look simple until availability, authorisation and simultaneous r
 | 3 — Architecture and error contracts | Complete | Professional package, feature modules, transactional services, DTO boundaries and RFC 9457 errors |
 | 4 — Authentication and RBAC | Complete | Refresh-token lifecycle, roles, ownership and 401/403 authorization tests |
 | 5 — Catalogue and inventory | Complete | Resources, physical items, lifecycle statuses, filters and pagination |
-| 6–7 — Lending workflows | Next | Loan state machine, policies, reservations and concurrency |
+| 6 — Loan workflow | Complete | State transitions, due-date policies, limits, overdue checks and audit events |
+| 7 — Reservations and concurrency | Next | Waiting queue, promotion, expiry and last-item locking |
 | 8–10 — Operations and portfolio | Planned | Observability, Docker Compose, CI and final architecture documentation |
 
 ## Architecture
@@ -77,7 +80,7 @@ com.ricardoporto.lending
 
 Controllers depend only on application services. Services own transaction boundaries and coordinate repositories. Spring Data REST was removed so repositories cannot accidentally expose entities outside the documented API. A structural test protects the controller boundary.
 
-The main decisions and trade-offs are recorded in [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md), [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md) and [ADR-003: Resource and ResourceItem](docs/adr/003-resource-and-resource-item.md).
+The main decisions and trade-offs are recorded in [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md), [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md), [ADR-003: Resource and ResourceItem](docs/adr/003-resource-and-resource-item.md) and [ADR-004: Explicit loan workflow](docs/adr/004-explicit-loan-workflow.md).
 
 ## Technology baseline
 
@@ -108,7 +111,7 @@ On Windows:
 .\mvnw.cmd clean verify
 ```
 
-No locally installed database or database credentials are required. The command starts a pinned `postgres:17.6-alpine` container, applies production migrations and test-only fixtures, runs all 20 tests, checks formatting and packages the executable JAR.
+No locally installed database or database credentials are required. The command starts a pinned `postgres:17.6-alpine` container, applies production migrations and test-only fixtures, runs all 23 tests, checks formatting and packages the executable JAR.
 
 ## Run the API locally
 
@@ -152,6 +155,7 @@ Flyway is the only source of truth for the runtime schema. The production migrat
 src/main/resources/db/migration/V1__initial_schema.sql
 src/main/resources/db/migration/V2__authentication_and_ownership.sql
 src/main/resources/db/migration/V3__resource_catalogue.sql
+src/main/resources/db/migration/V4__loan_workflow.sql
 ```
 
 They create the legacy-compatible domain tables and add role reference data, customer ownership and hashed refresh-token persistence with the required keys, constraints and indexes. Hibernate runs with `ddl-auto=validate`, so a mismatch fails startup rather than silently modifying the database.
@@ -211,6 +215,21 @@ Because outbound e-mail is outside the current MVP, registration creates an acti
 | Modify or delete loans | No | Yes | Yes |
 
 URL rules reject disallowed requests before controller execution, while service-level checks protect catalogue mutations and ownership-sensitive operations. Unauthenticated requests return `401`; authenticated callers without permission return `403`, both as Problem Details.
+
+### Loan workflow
+
+```text
+POST /api/v1/loans
+GET  /api/v1/loans
+GET  /api/v1/loans/{id}
+POST /api/v1/loans/{id}/approve
+POST /api/v1/loans/{id}/reject
+POST /api/v1/loans/{id}/collect
+POST /api/v1/loans/{id}/return
+POST /api/v1/loans/{id}/cancel
+```
+
+The API exposes commands for each valid transition instead of a generic status patch. `STUDENT` users request and inspect their own loans; `STAFF` and `ADMIN` can operate the approval and physical hand-off workflow. Policy rows determine active-loan limits and due dates for every role/resource-type combination.
 
 ## Build quality
 
