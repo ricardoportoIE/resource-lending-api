@@ -7,7 +7,7 @@ COPY src src
 RUN --mount=type=cache,target=/root/.m2 \
   chmod +x mvnw && ./mvnw --batch-mode -DskipTests package
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:24-jre-alpine
 
 RUN addgroup -S app && adduser -S -G app app
 WORKDIR /app
