@@ -4,6 +4,7 @@ import com.ricardoporto.lending.shared.exception.ApiException;
 import com.ricardoporto.lending.shared.exception.ResourceNotFoundException;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,7 @@ public class ExemplarService {
   }
 
   @Transactional
+  @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
   public ExemplarDto create(ExemplarPostDto request) {
     var exemplar = createSubtype(request);
     exemplar.setNome(request.nome());
@@ -42,6 +44,7 @@ public class ExemplarService {
   }
 
   @Transactional
+  @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
   public ExemplarDto update(Long codigo, ExemplarPatchDto request) {
     var exemplar = requireExemplar(codigo);
     if (request.nome() != null) exemplar.setNome(request.nome());
@@ -60,6 +63,7 @@ public class ExemplarService {
   }
 
   @Transactional
+  @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
   public void delete(Long codigo) {
     exemplarRepository.delete(requireExemplar(codigo));
   }

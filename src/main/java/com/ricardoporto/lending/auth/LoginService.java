@@ -1,27 +1,26 @@
 package com.ricardoporto.lending.auth;
 
-import com.ricardoporto.lending.shared.security.TokenJwtDTO;
-import com.ricardoporto.lending.shared.security.TokenService;
 import com.ricardoporto.lending.user.Usuario;
+import java.util.Locale;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 
 @Service
 public class LoginService {
-
   private final AuthenticationManager authenticationManager;
-  private final TokenService tokenService;
+  private final RefreshTokenService refreshTokenService;
 
-  public LoginService(AuthenticationManager authenticationManager, TokenService tokenService) {
+  public LoginService(
+      AuthenticationManager authenticationManager, RefreshTokenService refreshTokenService) {
     this.authenticationManager = authenticationManager;
-    this.tokenService = tokenService;
+    this.refreshTokenService = refreshTokenService;
   }
 
-  public TokenJwtDTO login(UsuarioAutenticacaoDTO request) {
-    var credentials = new UsernamePasswordAuthenticationToken(request.email(), request.senha());
+  public AuthTokensDto login(UsuarioAutenticacaoDTO request) {
+    var normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
+    var credentials = new UsernamePasswordAuthenticationToken(normalizedEmail, request.senha());
     var authentication = authenticationManager.authenticate(credentials);
-    var token = tokenService.geraToken((Usuario) authentication.getPrincipal());
-    return new TokenJwtDTO(token);
+    return refreshTokenService.issue((Usuario) authentication.getPrincipal());
   }
 }

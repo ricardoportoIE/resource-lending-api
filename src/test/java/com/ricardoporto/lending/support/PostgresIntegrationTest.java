@@ -12,7 +12,6 @@ public abstract class PostgresIntegrationTest {
       new PostgreSQLContainer("postgres:17.6-alpine").withDatabaseName("resource_lending_test");
 
   private static final String JWT_SECRET = UUID.randomUUID() + UUID.randomUUID().toString();
-  private static final String EMAIL_CONFIRMATION_TOKEN = UUID.randomUUID().toString();
 
   static {
     DATABASE.start();
@@ -24,10 +23,5 @@ public abstract class PostgresIntegrationTest {
     registry.add("spring.datasource.username", DATABASE::getUsername);
     registry.add("spring.datasource.password", DATABASE::getPassword);
     registry.add("api.security.token.secret", () -> JWT_SECRET);
-    registry.add("api.security.email-confirmation-token", () -> EMAIL_CONFIRMATION_TOKEN);
-  }
-
-  protected static String confirmationToken() {
-    return EMAIL_CONFIRMATION_TOKEN;
   }
 }

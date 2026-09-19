@@ -93,7 +93,7 @@ public class ClienteControllerIntegracaoTest extends BaseAPIIntegracaoTest {
   @DisplayName("Deve retornar lista vazia quando não houver clientes cadastrados")
   public void deveRetornarListaVaziaQuandoNaoHouverClientes() {
     // Arrange
-    final String CLIENTES_API_URL = "/api/v1/clientes";
+    final String CLIENTES_API_URL = "/api/v1/clientes/nome/no-customer-has-this-name";
     final String MENSAGEM_LISTA_VAZIA = "A lista de clientes deve estar vazia";
     final String MENSAGEM_STATUS_OK = "O status da resposta deve ser OK";
     final String MENSAGEM_CORPO_NAO_NULO = "O corpo da resposta não deve ser nulo";

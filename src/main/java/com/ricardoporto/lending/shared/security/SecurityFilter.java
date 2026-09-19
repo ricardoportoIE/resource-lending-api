@@ -6,56 +6,56 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-@Component // indica que essa classe deve ser adicionada ao Contexto do aplicativo como um Bean de
-// Configuração
+@Component
 public class SecurityFilter extends OncePerRequestFilter {
-
   private final TokenService tokenService;
   private final UsuarioRepository repository;
+  private final AuthenticationEntryPoint authenticationEntryPoint;
 
-  // O SB identifica as dependências e injeta a partir do Context do app
-  public SecurityFilter(TokenService tokenService, UsuarioRepository repository) {
+  public SecurityFilter(
+      TokenService tokenService,
+      UsuarioRepository repository,
+      AuthenticationEntryPoint authenticationEntryPoint) {
     this.tokenService = tokenService;
     this.repository = repository;
+    this.authenticationEntryPoint = authenticationEntryPoint;
   }
 
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    // recupera o token do request
-    var tokenJWT = recuperarToken(request);
-    // valida o token
-    if (tokenJWT != null) { // se a rota tem o token (no caso, qualquer rota, exceto /login)
-      var subject = tokenService.getSubject(tokenJWT);
-      // autentica o subject (usuário que fez login, pois o Spring está configurado como Stateless)
-      var usuario = repository.findByEmail(subject); // recupera o objeto usuário
-      var authentication =
-          new UsernamePasswordAuthenticationToken(
-              usuario,
-              null,
-              usuario.getAuthorities()); // DTO do Spring para o usuário que acessa o sistema
-      SecurityContextHolder.getContext()
-          .setAuthentication(authentication); // força a autenticação no Spring
+    var token = bearerToken(request);
+    if (token != null) {
+      try {
+        var usuario = repository.findByEmail(tokenService.getSubject(token));
+        if (usuario == null || !usuario.isEnabled()) {
+          authenticationEntryPoint.commence(
+              request, response, new BadCredentialsException("Invalid access token."));
+          return;
+        }
+        SecurityContextHolder.getContext()
+            .setAuthentication(
+                new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities()));
+      } catch (RuntimeException exception) {
+        SecurityContextHolder.clearContext();
+        authenticationEntryPoint.commence(
+            request, response, new BadCredentialsException("Invalid access token.", exception));
+        return;
+      }
     }
-
-    // Não esquecer de chamar o próximo filtro (que pode significar simplesmente entregar a request
-    // ou response)
-    filterChain.doFilter(
-        request, response); // chama o próximo filter na cadeia de filters do Spring (ou do Servlet)
+    filterChain.doFilter(request, response);
   }
 
-  private String recuperarToken(HttpServletRequest request) {
-    var autorizationHeader = request.getHeader("Authorization");
-    if (autorizationHeader != null) { // só recupera o token de rotas que o tem
-      return autorizationHeader.replace(
-          "Bearer ", ""); // limpa o header Authorization, deixando apenas o token
-    }
-    return null; // senão retorna null
+  private String bearerToken(HttpServletRequest request) {
+    var header = request.getHeader("Authorization");
+    return header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
   }
 }

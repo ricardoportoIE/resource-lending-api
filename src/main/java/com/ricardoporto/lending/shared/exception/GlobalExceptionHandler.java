@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -71,9 +72,21 @@ public class GlobalExceptionHandler {
       BadCredentialsException ex, HttpServletRequest request) {
     var problem =
         createProblem(
-            HttpStatus.FORBIDDEN,
+            HttpStatus.UNAUTHORIZED,
             "INVALID_CREDENTIALS",
             "The supplied credentials are invalid.",
+            request);
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+  }
+
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ProblemDetail> handleAccessDeniedException(
+      AccessDeniedException ex, HttpServletRequest request) {
+    var problem =
+        createProblem(
+            HttpStatus.FORBIDDEN,
+            "ACCESS_DENIED",
+            "You do not have permission to perform this operation.",
             request);
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
   }

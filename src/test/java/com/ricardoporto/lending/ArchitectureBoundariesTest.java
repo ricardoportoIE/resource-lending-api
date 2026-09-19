@@ -4,11 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ricardoporto.lending.auth.AutenticacaoController;
-import com.ricardoporto.lending.auth.ConfirmacaoEmailController;
 import com.ricardoporto.lending.customer.ClienteController;
 import com.ricardoporto.lending.loan.EmprestimoController;
 import com.ricardoporto.lending.resource.ExemplarController;
-import com.ricardoporto.lending.user.UsuarioController;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
@@ -21,11 +19,9 @@ class ArchitectureBoundariesTest {
     var controllers =
         List.of(
             AutenticacaoController.class,
-            ConfirmacaoEmailController.class,
             ClienteController.class,
             EmprestimoController.class,
-            ExemplarController.class,
-            UsuarioController.class);
+            ExemplarController.class);
 
     assertAll(
         controllers.stream()

@@ -1,7 +1,7 @@
 package com.ricardoporto.lending.customer;
 
+import com.ricardoporto.lending.user.Usuario;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -9,7 +9,6 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)
 @DiscriminatorColumn(name = "tipo_cliente")
@@ -23,6 +22,10 @@ public abstract class Cliente {
   private Integer idade;
   private String telefone;
   private String endereco;
+
+  @OneToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "usuario_id", unique = true)
+  private Usuario usuario;
 
   public Long getCodigo() {
     return codigo;

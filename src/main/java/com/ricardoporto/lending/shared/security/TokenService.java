@@ -11,38 +11,45 @@ import java.time.Instant;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-@Service // indica que essa classe deve ser adicionada ao Contexto do aplicativo como um Bean da
-// camada de serviço de segurança JWT
+@Service
 public class TokenService {
-
   private static final String ISSUER = "resource-lending-api";
+  private final String secret;
+  private final Duration accessTtl;
 
-  @Value(value = "${api.security.token.secret}") // vem de application.properties, em
-  // api.security.token.secret
-  private String secret;
+  public TokenService(
+      @Value("${api.security.token.secret}") String secret,
+      @Value("${api.security.token.access-ttl}") Duration accessTtl) {
+    this.secret = secret;
+    this.accessTtl = accessTtl;
+  }
 
-  public String geraToken(Usuario usuario) {
+  public String generateAccessToken(Usuario usuario) {
     try {
-      var algorithm = Algorithm.HMAC256(secret);
       return JWT.create()
           .withIssuer(ISSUER)
           .withSubject(usuario.getUsername())
-          .withIssuedAt(Instant.now()) // gerado em
-          .withExpiresAt(Instant.now().plus(Duration.ofHours(2))) // expira em
-          .sign(algorithm);
+          .withIssuedAt(Instant.now())
+          .withExpiresAt(Instant.now().plus(accessTtl))
+          .sign(Algorithm.HMAC256(secret));
     } catch (JWTCreationException exception) {
-      // Invalid Signing configuration / Couldn't convert Claims.
-      throw new RuntimeException("Erro ao gerar o token JWT.", exception);
+      throw new IllegalStateException("Access token could not be generated.", exception);
     }
   }
 
-  public String getSubject(String tokenJWT) {
+  public String getSubject(String token) {
     try {
-      var algorithm = Algorithm.HMAC256(secret);
-      return JWT.require(algorithm).withIssuer(ISSUER).build().verify(tokenJWT).getSubject();
+      return JWT.require(Algorithm.HMAC256(secret))
+          .withIssuer(ISSUER)
+          .build()
+          .verify(token)
+          .getSubject();
     } catch (JWTVerificationException exception) {
-      // Invalid signature/claims
-      throw new TokenInvalidoException("Token JWT inválido ou expirado.");
+      throw new TokenInvalidoException("The access token is invalid or expired.");
     }
+  }
+
+  public Duration accessTokenTtl() {
+    return accessTtl;
   }
 }

@@ -18,4 +18,9 @@ public record ClientePostDto(
     @NotBlank(message = "O endereço é obrigatório") String endereco,
     @NotBlank(message = "O tipo é obrigatório")
         @Pattern(regexp = "ALUNO|PAI_DE_ALUNO", message = "O tipo deve ser ALUNO ou PAI_DE_ALUNO")
-        String tipo) {}
+        String tipo,
+    Long ownerUserId) {
+  public ClientePostDto(String nome, Integer idade, String telefone, String endereco, String tipo) {
+    this(nome, idade, telefone, endereco, tipo, null);
+  }
+}

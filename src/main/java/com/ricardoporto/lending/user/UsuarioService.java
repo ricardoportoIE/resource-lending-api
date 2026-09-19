@@ -12,10 +12,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class UsuarioService {
 
   private final UsuarioRepository usuarioRepository;
+  private final PerfilRepository perfilRepository;
   private final PasswordEncoder passwordEncoder;
 
-  public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+  public UsuarioService(
+      UsuarioRepository usuarioRepository,
+      PerfilRepository perfilRepository,
+      PasswordEncoder passwordEncoder) {
     this.usuarioRepository = usuarioRepository;
+    this.perfilRepository = perfilRepository;
     this.passwordEncoder = passwordEncoder;
   }
 
@@ -30,8 +35,15 @@ public class UsuarioService {
     var usuario = new Usuario();
     usuario.setEmail(normalizedEmail);
     usuario.setSenha(passwordEncoder.encode(request.senha()));
-    usuario.setConfirmado(false);
-    usuario.setPerfis(List.of());
+    usuario.setConfirmado(true);
+    var studentProfile =
+        perfilRepository
+            .findByNome(Role.STUDENT.authority())
+            .orElseThrow(
+                () ->
+                    new IllegalStateException(
+                        "The STUDENT role was not initialized by the database migration."));
+    usuario.setPerfis(List.of(studentProfile));
     var saved = usuarioRepository.save(usuario);
     return new UsuarioDto(saved.getId(), saved.getEmail(), saved.isConfirmado());
   }

@@ -11,6 +11,7 @@ public final class ClienteMapper {
         cliente.getIdade(),
         cliente.getTelefone(),
         cliente.getEndereco(),
-        cliente.getClass().getSimpleName());
+        cliente.getClass().getSimpleName(),
+        cliente.getUsuario() == null ? null : cliente.getUsuario().getId());
   }
 }

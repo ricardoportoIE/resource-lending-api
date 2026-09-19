@@ -1,347 +1,208 @@
 package com.ricardoporto.lending.shared.security;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ricardoporto.lending.support.PostgresIntegrationTest;
 import com.ricardoporto.lending.user.UsuarioRepository;
 import java.util.UUID;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-/*
-   Se você nunca ouviu falar, Mocking é uma forma de teste onde, em vez de verificar os resultados, verificamos os
-   métodos invocados.
-*/
-
-@SpringBootTest // Carrega o Context do app em um container Spring Boot
-@AutoConfigureMockMvc // Autoconfigura o Spring Boot Web, modo Mockado (o que siginifica nos
-// entregar um container com um Servlet, mas sem o servidor web)
+@SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 class SecurityConfigTest extends PostgresIntegrationTest {
-
-  @Autowired // @AutoConfigureMockMvc (anotação na linha 16) nos permite injetar esse Bean
-  private MockMvc
-      mvc; // Elimina a necessidade de um servidor e nos permite realizar chamadas "Mockadas" nos
-
+  @Autowired private MockMvc mvc;
+  @Autowired private ObjectMapper objectMapper;
   @Autowired private UsuarioRepository usuarioRepository;
   @Autowired private PasswordEncoder passwordEncoder;
-
-  // end-points
+  @Autowired private JdbcTemplate jdbcTemplate;
 
   @Test
-  void endpointLoginQuandoUsuarioExistenteESenhaCorretaEspera200Ok() throws Exception {
-    // ARRANGE
-    var json =
-        """
-            {
-              "email": "admin@email.com",
-              "senha": "123"
-            }
-            """;
-    var url = "/api/v1/login";
+  void loginReturnsAccessAndRefreshTokens() throws Exception {
+    var tokens = login("admin@email.com");
 
-    // ACT
-    var response =
-        mvc.perform( // performa uma requisição
-                post(url) // verbo na rota
-                    .content(json) // o body da requisição
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(200, response.getStatus());
+    assertNotNull(tokens.get("accessToken").textValue());
+    assertNotNull(tokens.get("refreshToken").textValue());
+    assertTrue(tokens.get("expiresIn").longValue() > 0);
+    var rawRefreshToken = tokens.get("refreshToken").textValue();
+    var plaintextMatches =
+        jdbcTemplate.queryForObject(
+            "select count(*) from refresh_tokens where token_hash = ?",
+            Integer.class,
+            rawRefreshToken);
+    var hashedMatches =
+        jdbcTemplate.queryForObject(
+            "select count(*) from refresh_tokens where char_length(token_hash) = 64",
+            Integer.class);
+    assertEquals(0, plaintextMatches);
+    assertTrue(hashedMatches > 0);
   }
 
   @Test
-  void endpointLoginQuandoUsuarioInexistenteEspera400BadRequest() throws Exception {
-    // ARRANGE
-    var json =
-        """
-            {
-              "email": "admin",
-              "senha": "123"
-            }
-            """;
-    var url = "/api/v1/login";
-
-    // ACT
-    var response =
-        mvc.perform( // performa uma requisição
-                post(url) // verbo na rota
-                    .content(json) // o body da requisição
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(400, response.getStatus());
+  void invalidCredentialsReturn401ProblemDetail() throws Exception {
+    mvc.perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(credentials("admin@email.com", "wrong-password")))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
   }
 
   @Test
-  void endpointLoginQuandoUsuarioExistenteESenhaIncorretaEspera403() throws Exception {
-    // ARRANGE
-    var json =
-        """
-            {
-              "email": "admin@email.com",
-              "senha": "123456"
-            }
-            """;
-    var url = "/api/v1/login";
+  void protectedEndpointWithoutOrWithInvalidTokenReturns401() throws Exception {
+    mvc.perform(get("/api/v1/exemplares"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
 
-    // ACT
-    var response =
-        mvc.perform( // performa uma requisição
-                post(url) // verbo na rota
-                    .content(json) // o body da requisição
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
+    mvc.perform(get("/api/v1/exemplares").header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
   }
 
   @Test
-  void endpointCadastrarQuandoVerboPostComBodyIncorretoEspera400BadRequest() throws Exception {
-    // ARRANGE
-    var json =
+  void studentCannotManageCatalogueButStaffCan() throws Exception {
+    var resource =
         """
-            {
-              "email": "adminemail",
-              "senha": "123"
-            }
-            """;
-    var url = "/api/v1/usuarios/cadastrar";
+        {"nome":"Clean Architecture","tipo":"LIVRO","autor":"Robert Martin","editora":"Pearson","edicao":1}
+        """;
 
-    // ACT
-    var response =
-        mvc.perform( // performa uma requisição
-                post(url) // verbo na rota
-                    .content(json) // o body da requisição
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
+    mvc.perform(
+            post("/api/v1/exemplares")
+                .header(HttpHeaders.AUTHORIZATION, bearer("student1@email.com"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(resource))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
-    // ASSERT
-    Assertions.assertEquals(400, response.getStatus());
+    mvc.perform(
+            post("/api/v1/exemplares")
+                .header(HttpHeaders.AUTHORIZATION, bearer("staff@email.com"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(resource))
+        .andExpect(status().isCreated());
   }
 
   @Test
-  void endpointCadastrarPersisteSenhaProtegidaERejeitaEmailDuplicado() throws Exception {
-    var email = "new-user-" + UUID.randomUUID() + "@example.com";
-    var json =
-        """
-        {
-          "email": "%s",
-          "senha": "secure-password"
-        }
-        """
-            .formatted(email);
-    var url = "/api/v1/usuarios/cadastrar";
-
-    mvc.perform(post(url).content(json).contentType(MediaType.APPLICATION_JSON))
+  void registrationHashesPasswordAndAssignsStudentRole() throws Exception {
+    var email = "new-student-" + UUID.randomUUID() + "@example.com";
+    mvc.perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(credentials(email, "secure-password")))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.email").value(email))
         .andExpect(jsonPath("$.senha").doesNotExist());
 
     var saved = usuarioRepository.findByEmail(email);
-    Assertions.assertNotNull(saved);
-    Assertions.assertTrue(passwordEncoder.matches("secure-password", saved.getSenha()));
-
-    mvc.perform(post(url).content(json).contentType(MediaType.APPLICATION_JSON))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_REGISTERED"));
-
+    assertNotNull(saved);
+    assertTrue(saved.isEnabled());
+    assertTrue(passwordEncoder.matches("secure-password", saved.getSenha()));
+    assertTrue(
+        saved.getAuthorities().stream()
+            .anyMatch(authority -> authority.getAuthority().equals("ROLE_STUDENT")));
     usuarioRepository.delete(saved);
   }
 
   @Test
-  void endpointCadastrarQuandoVerboGetPutEDeleteEspera403Forbidden() throws Exception {
-    // ARRANGE
-    var json =
-        """
-            {
-              "email": "admin@email.com",
-              "senha": "123"
-            }
-            """;
-    var url = "/api/v1/usuarios/cadastrar";
+  void refreshRotatesTokenAndReuseRevokesActiveTokens() throws Exception {
+    var initial = login("student1@email.com");
+    var firstRefresh = initial.get("refreshToken").textValue();
+    var rotated = refresh(firstRefresh, 200);
+    var secondRefresh = rotated.get("refreshToken").textValue();
+    assertNotEquals(firstRefresh, secondRefresh);
 
-    // ACT + ASSERT
-    this.mvc.perform(get(url)).andExpect(status().isForbidden());
-
-    // ACT
-    var response =
-        mvc.perform( // performa uma requisição
-                put(url) // verbo na rota
-                    .content(json) // o body da requisição
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
-
-    // ACT
-    response =
-        mvc.perform( // performa uma requisição
-                delete(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
+    refresh(firstRefresh, 401);
+    refresh(secondRefresh, 401);
   }
 
   @Test
-  void endPointConfirmarEmailQuandoVerboGetETokenValidoEspera200Ok() throws Exception {
-    // ARRANGE
-    var url = "/confirmar-email?token=" + confirmationToken();
+  void logoutRevokesRefreshToken() throws Exception {
+    var refreshToken = login("student2@email.com").get("refreshToken").textValue();
+    mvc.perform(
+            post("/api/v1/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(refreshBody(refreshToken)))
+        .andExpect(status().isNoContent());
 
-    // ACT
-    var response =
-        mvc.perform( // performa uma requisição
-                get(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(200, response.getStatus());
+    refresh(refreshToken, 401);
   }
 
   @Test
-  void endPointConfirmarEmailQuandoVerboGetETokenInvalidoEspera400BadRequest() throws Exception {
-    // ARRANGE
-    var url = "/confirmar-email?token=token_invalido";
+  void studentOnlyReadsOwnedCustomerAndLoans() throws Exception {
+    var authorization = bearer("student1@email.com");
 
-    // ACT
-    var response =
-        mvc.perform( // performa uma requisição
-                get(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(400, response.getStatus());
-  }
-
-  @Test
-  void endPointConfirmarEmailQuandoVerboPostPutEDeleteETokenValidoEspera403Forbidden()
-      throws Exception {
-    // ARRANGE
-    var url = "/confirmar-email?token=" + confirmationToken();
-
-    // ACT
-    var response =
-        mvc.perform( // performa uma requisição
-                post(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
-
-    // ACT
-    response =
-        mvc.perform( // performa uma requisição
-                put(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
-
-    // ACT
-    response =
-        mvc.perform( // performa uma requisição
-                delete(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
-  }
-
-  @Test
-  void endPointProdutosQuandoVerboGetPostPutDeleteENaoEstaAutenticadoEspera403Forbidden()
-      throws Exception {
-    // ARRANGE
-    var url = "/api/v1/produtos";
-    var body =
-        """
-            {
-              "key": "value",
-              "key2": "value2"
-            }
-            """;
-
-    // ACT + ASSERT
-    this.mvc
-        .perform(get(url)) // verbo na rota
+    mvc.perform(get("/api/v1/clientes").header(HttpHeaders.AUTHORIZATION, authorization))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].codigo").value(100));
+    mvc.perform(get("/api/v1/clientes/101").header(HttpHeaders.AUTHORIZATION, authorization))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    mvc.perform(get("/api/v1/emprestimos").header(HttpHeaders.AUTHORIZATION, authorization))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].id").value(100));
+    mvc.perform(get("/api/v1/emprestimos/101").header(HttpHeaders.AUTHORIZATION, authorization))
         .andExpect(status().isForbidden());
+  }
 
-    // ACT
+  private String bearer(String email) throws Exception {
+    return "Bearer " + login(email).get("accessToken").textValue();
+  }
+
+  private JsonNode login(String email) throws Exception {
     var response =
-        mvc.perform( // performa uma requisição
-                post(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
+        mvc.perform(
+                post("/api/v1/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(credentials(email, "123")))
+            .andExpect(status().isOk())
             .andReturn()
-            .getResponse(); // a response da requisição
+            .getResponse();
+    return objectMapper.readTree(response.getContentAsString());
+  }
 
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
-
-    // ACT
-    response =
-        mvc.perform( // performa uma requisição
-                put(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
+  private JsonNode refresh(String token, int expectedStatus) throws Exception {
+    var response =
+        mvc.perform(
+                post("/api/v1/auth/refresh")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(refreshBody(token)))
+            .andExpect(status().is(expectedStatus))
             .andReturn()
-            .getResponse(); // a response da requisição
+            .getResponse();
+    return objectMapper.readTree(response.getContentAsString());
+  }
 
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
+  private String credentials(String email, String password) {
+    return """
+        {"email":"%s","senha":"%s"}
+        """
+        .formatted(email, password);
+  }
 
-    // ACT
-    response =
-        mvc.perform( // performa uma requisição
-                delete(url) // verbo na rota
-                    .contentType(MediaType.APPLICATION_JSON) // o header Content-type
-                )
-            .andReturn()
-            .getResponse(); // a response da requisição
-
-    // ASSERT
-    Assertions.assertEquals(403, response.getStatus());
+  private String refreshBody(String token) {
+    return """
+        {"refreshToken":"%s"}
+        """
+        .formatted(token);
   }
 }

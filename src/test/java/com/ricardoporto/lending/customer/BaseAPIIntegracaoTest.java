@@ -52,7 +52,7 @@ public abstract class BaseAPIIntegracaoTest extends PostgresIntegrationTest {
     assertNotNull(user);
 
     // Gera token
-    jwtToken = tokenService.geraToken(user);
+    jwtToken = tokenService.generateAccessToken(user);
     assertNotNull(jwtToken);
   }
 

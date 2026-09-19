@@ -7,5 +7,10 @@ import jakarta.validation.constraints.Size;
 public record UsuarioCadastroDto(
     @NotBlank(message = "Email is required") @Email(message = "Email must be valid") String email,
     @NotBlank(message = "Password is required")
-        @Size(min = 3, message = "Password must contain at least 3 characters")
-        String senha) {}
+        @Size(min = 8, message = "Password must contain at least 8 characters")
+        String senha) {
+  @Override
+  public String toString() {
+    return "UsuarioCadastroDto[email=" + email + ", senha=<redacted>]";
+  }
+}
