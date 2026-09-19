@@ -23,3 +23,5 @@ npm audit --audit-level=moderate
 ```
 
 Access and refresh tokens are held in `sessionStorage`, so closing the tab clears the browser session. Signing out also calls the server-side access-token revocation endpoint. Staff and administrator accounts are provisioned outside public registration to prevent role escalation.
+
+The API client retries an authenticated request once after rotating an expired access token. Network, reverse-proxy and RFC 9457 errors are converted into actionable UI messages, and concurrent command clicks are suppressed while an operation is running. The production Nginx proxy preserves the browser-facing host and port so same-origin authentication requests are not incorrectly rejected by the backend CORS boundary.

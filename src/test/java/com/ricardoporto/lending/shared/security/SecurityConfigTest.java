@@ -188,7 +188,9 @@ class SecurityConfigTest extends PostgresIntegrationTest {
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
                 .string(
                     "Content-Security-Policy",
-                    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"));
+                    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                        + "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+                        + "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"));
   }
 
   private String bearer(String email) throws Exception {

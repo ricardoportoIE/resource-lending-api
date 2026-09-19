@@ -155,7 +155,9 @@ public class SecurityConfig {
               headers.contentSecurityPolicy(
                   csp ->
                       csp.policyDirectives(
-                          "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"));
+                          "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                              + "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+                              + "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"));
               headers.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER));
               headers.addHeaderWriter(
                   new StaticHeadersWriter(
