@@ -24,7 +24,7 @@ jobs:
         run: docker compose up --build --detach database jaeger api
       - name: Wait for readiness
         run: |
-          for attempt in {1..45}; do
+          for _ in {1..45}; do
             curl --fail --silent http://127.0.0.1:8081/actuator/health && exit 0
             sleep 2
           done
