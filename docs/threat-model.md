@@ -30,7 +30,7 @@ TLS termination and public network policy belong to the deployment edge. The Com
 
 | Threat | Example | Implemented control | Residual risk / next control |
 |---|---|---|---|
-| Spoofing | Credential stuffing or forged JWT | BCrypt, progressive account lock, IP/user rate limits, issuer/signature/expiry validation, `kid` key ring | In-memory limits are per replica; use a shared gateway/Redis limiter at scale and add MFA for privileged users |
+| Spoofing | Credential stuffing or forged JWT | BCrypt, progressive account lock, IP/user rate limits, required issuer/subject/expiry/`jti`, signature validation, `kid` key ring and minimum 32-character HMAC secrets | In-memory limits are per replica; use a shared gateway/Redis limiter at scale and add MFA for privileged users |
 | Tampering | Client skips a loan transition or modifies another user's borrower ID | Method authorization, ownership checks, explicit state machine, database constraints and row locks | Privileged staff misuse requires review of immutable audit events |
 | Repudiation | User denies a command | Correlation/trace IDs, audit events, Outbox history and idempotency records | Define production retention and restricted audit-reader roles |
 | Information disclosure | Tokens in logs, cross-origin theft, observability exposure | Redacted DTO logging, hashed refresh/identity tokens at rest, narrow CORS, CSP/referrer/permissions headers, loopback management ports | Outbox payload temporarily contains one-time delivery tokens; restrict DB access and apply retention |
@@ -46,11 +46,14 @@ TLS termination and public network policy belong to the deployment edge. The Com
 - Explicit access-token revocation stores its `jti` until expiry; scheduled cleanup bounds the table.
 - Signing-key rotation accepts configured previous `kid` entries while issuing only with `JWT_ACTIVE_KID`.
 - Unknown-email password recovery still returns `202`, reducing account enumeration.
+- Malformed, expired, foreign-issuer, revoked or required-claim-deficient JWTs all fail closed with the same public `401` contract.
+- Cross-origin authentication commands are rejected unless their exact origin is configured, and untrusted correlation IDs are replaced before entering response headers or logs.
+- Public registration ignores injected privilege fields and always persists exactly the `STUDENT` role.
 - The CI suite runs CodeQL for Java and TypeScript, dependency review for pull requests, npm audit and a scheduled OWASP ZAP OpenAPI scan.
 
 ## Operational requirements
 
-- Generate independent random secrets of at least 32 bytes; never commit `.env`.
+- Generate independent random secrets of at least 32 characters; startup fails closed for weaker JWT secrets. Never commit `.env`.
 - Rotate by adding a new `kid:secret` pair, making it active, waiting longer than the access-token TTL, then removing the previous key.
 - Terminate TLS before the API. HSTS is emitted only on secure requests by Spring Security.
 - Protect webhook traffic with private networking or an authenticated gateway; the demonstration adapter supplies an idempotency key but no vendor-specific signature.

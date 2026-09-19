@@ -118,7 +118,7 @@ export default function App() {
   );
 }
 
-function Login({ onLogin }: { onLogin: (token: string) => void }) {
+export function Login({ onLogin }: { onLogin: (token: string) => void }) {
   type AuthMode = "login" | "register" | "forgot" | "reset" | "confirm";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -217,7 +217,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
   );
 }
 
-function Catalogue({ token, run, onError, busy }: { token: string; run: Runner; onError: ErrorHandler; busy: boolean }) {
+export function Catalogue({ token, run, onError, busy }: { token: string; run: Runner; onError: ErrorHandler; busy: boolean }) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -257,14 +257,14 @@ function Catalogue({ token, run, onError, busy }: { token: string; run: Runner; 
   );
 }
 
-function Loans({ token, ownUserId, onError }: { token: string; ownUserId: number; onError: ErrorHandler }) {
+export function Loans({ token, ownUserId, onError }: { token: string; ownUserId: number; onError: ErrorHandler }) {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => { api.loans(token).then((items) => setLoans(items.filter((loan) => loan.borrowerId === ownUserId))).catch(onError).finally(() => setLoading(false)); }, [token, ownUserId, onError]);
   return <section><PageHeader eyebrow="Your activity" title="My loans" detail="Track every request from review to return." />{loading ? <Skeleton /> : <DataTable headers={["Asset", "Status", "Requested", "Due"]}>{loans.length ? loans.map((loan) => <tr key={loan.id}><td><strong>{loan.assetTag}</strong></td><td><Status value={loan.status} /></td><td>{formatDate(loan.requestedAt)}</td><td>{formatDate(loan.dueAt)}</td></tr>) : <EmptyRow columns={4} message="You do not have any loans yet." />}</DataTable>}</section>;
 }
 
-function Reservations({ token, run, onError, busy }: { token: string; run: Runner; onError: ErrorHandler; busy: boolean }) {
+export function Reservations({ token, run, onError, busy }: { token: string; run: Runner; onError: ErrorHandler; busy: boolean }) {
   const [items, setItems] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
@@ -281,7 +281,7 @@ function Reservations({ token, run, onError, busy }: { token: string; run: Runne
   return <section><PageHeader eyebrow="Fair access" title="Reservation queue" detail="FIFO positions and ready-to-collect windows." />{loading ? <Skeleton /> : <DataTable headers={["Resource", "Status", "Position", "Created", ""]}>{items.length ? items.map((item) => <tr key={item.id}><td><strong>{item.resourceName}</strong></td><td><Status value={item.status} /></td><td>{item.queuePosition || "—"}</td><td>{formatDate(item.createdAt)}</td><td>{["WAITING", "READY"].includes(item.status) && <button className="text-button" disabled={busy} onClick={() => run(async () => { await api.cancelReservation(token, item.id); await load(); }, "Reservation cancelled.")}>Cancel</button>}</td></tr>) : <EmptyRow columns={5} message="You do not have any reservations." />}</DataTable>}</section>;
 }
 
-function LoanDesk({ token, run, onError, busy }: { token: string; run: Runner; onError: ErrorHandler; busy: boolean }) {
+export function LoanDesk({ token, run, onError, busy }: { token: string; run: Runner; onError: ErrorHandler; busy: boolean }) {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
@@ -298,7 +298,7 @@ function LoanDesk({ token, run, onError, busy }: { token: string; run: Runner; o
   return <section><PageHeader eyebrow="Staff workspace" title="Loan desk" detail="The next valid action is derived from the loan state machine." />{loading ? <Skeleton /> : <DataTable headers={["Borrower", "Asset", "Status", "Requested", "Action"]}>{loans.length ? loans.map((loan) => { const action = staffAction(loan.status); return <tr key={loan.id}><td>{loan.borrowerEmail}</td><td><strong>{loan.assetTag}</strong></td><td><Status value={loan.status} /></td><td>{formatDate(loan.requestedAt)}</td><td>{action && <button className="secondary" disabled={busy} onClick={() => run(async () => { await api.transitionLoan(token, loan.id, action.action); await load(); }, `Loan ${action.action} completed.`)}>{action.label}</button>}</td></tr>; }) : <EmptyRow columns={5} message="There are no loans to process." />}</DataTable>}</section>;
 }
 
-function Dashboard({ token, run, onError }: { token: string; run: Runner; onError: ErrorHandler }) {
+export function Dashboard({ token, run, onError }: { token: string; run: Runner; onError: ErrorHandler }) {
   const [summary, setSummary] = useState<DashboardSummary>();
   const [utilization, setUtilization] = useState<Utilization[]>([]);
   const [loading, setLoading] = useState(true);

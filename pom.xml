@@ -212,6 +212,7 @@
                             <excludes>
                                 <exclude>*$Hibernate*</exclude>
                                 <exclude>*$ByteBuddy*</exclude>
+                                <exclude>*$MockitoMock$*</exclude>
                             </excludes>
                         </configuration>
                         <goals>

@@ -2,6 +2,7 @@ HELP.md
 target/
 node_modules/
 frontend/dist/
+frontend/coverage/
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts

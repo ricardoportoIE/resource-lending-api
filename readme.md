@@ -4,8 +4,9 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/backend_tests-37_passing-brightgreen)
-![Coverage](https://img.shields.io/badge/line_coverage-87.22%25-brightgreen)
+![Tests](https://img.shields.io/badge/backend_tests-51_passing-brightgreen)
+![Frontend tests](https://img.shields.io/badge/frontend_tests-31_passing-brightgreen)
+![Coverage](https://img.shields.io/badge/line_coverage-87.36%25-brightgreen)
 
 A production-oriented REST API for lending shared organisational resources: books, laptops, rooms, tools and other individually tracked assets. It handles catalogue inventory, policy-driven loans, FIFO reservations and simultaneous claims without lending the same physical item twice.
 
@@ -30,6 +31,7 @@ This repository is also a modernization case study. An academic library CRUD app
 - RFC 9457 Problem Details with stable error codes and correlation IDs.
 - Flyway-only PostgreSQL schema management with Hibernate validation.
 - Testcontainers integration and concurrency tests against PostgreSQL 17.
+- Testing Library component journeys, browser-client security regressions and accessibility checks.
 - ECS-compatible JSON logs plus a provisioned Prometheus, Grafana and Jaeger stack.
 - Multi-stage non-root images, health-checked Docker Compose and GitHub Actions CI/SAST/DAST.
 - JaCoCo coverage gates and Spotless formatting enforcement.
@@ -136,6 +138,8 @@ PowerShell:
 
 The build starts an isolated `postgres:17.6-alpine` Testcontainer, applies every production migration from an empty database, runs the complete test suite, packages the executable JAR, checks formatting and enforces at least 75% line and 35% branch coverage. The HTML report is generated at `target/site/jacoco/index.html`.
 
+The frontend suite runs with Vitest, Testing Library, user-event, jsdom and axe-core. It enforces 80% coverage for lines, statements and functions plus 70% for branches, with its HTML report at `frontend/coverage/index.html`. See the [testing strategy](docs/testing.md) for the verification matrix and security regression catalogue.
+
 GitHub Actions repeats backend and frontend verification on every push and pull request to `main`, audits npm dependencies, uploads the coverage report and builds both production images.
 
 ## API surface
@@ -209,7 +213,7 @@ Every response includes `X-Correlation-ID`. A safe client-supplied ID is preserv
 | Documentation | springdoc-openapi 2.8.8, Swagger UI |
 | Frontend | React 19, TypeScript 7, Vite 8, unprivileged Nginx |
 | Observability | Micrometer, OpenTelemetry/OTLP, Prometheus 3, Grafana 13, Jaeger 2, ECS logging |
-| Testing | JUnit 5, MockMvc, Testcontainers 2.0.5 |
+| Testing | JUnit 5, MockMvc, Testcontainers 2.0.5, Vitest, Testing Library, axe-core |
 | Quality and delivery | Maven Wrapper 3.9.9, Enforcer, Spotless, JaCoCo, Docker, GitHub Actions |
 
 ## Configuration
@@ -284,6 +288,7 @@ The project now lives in the professional GitHub account [`ricardoportoIE`](http
 - [Observability and troubleshooting runbook](docs/troubleshooting.md)
 - [Frontend development and verification](frontend/README.md)
 - [Threat model and operational security requirements](docs/threat-model.md)
+- [Testing strategy and security regression catalogue](docs/testing.md)
 - [Recruiter, CV and GitHub summary](docs/portfolio-summary.md)
 - [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md)
 - [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md)

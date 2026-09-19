@@ -69,6 +69,13 @@ public class TokenService {
       var algorithm = verificationKeys.get(keyId);
       if (algorithm == null) throw new JWTVerificationException("Unknown signing key.");
       var verified = JWT.require(algorithm).withIssuer(ISSUER).build().verify(token);
+      if (verified.getSubject() == null
+          || verified.getSubject().isBlank()
+          || verified.getId() == null
+          || verified.getId().isBlank()
+          || verified.getExpiresAtAsInstant() == null) {
+        throw new JWTVerificationException("Required access-token claims are missing.");
+      }
       if (revokedTokens.existsById(verified.getId())) {
         throw new JWTVerificationException("Access token was revoked.");
       }
@@ -100,11 +107,12 @@ public class TokenService {
 
   private VerifiedAccessToken toVerifiedToken(DecodedJWT token) {
     var versionClaim = token.getClaim("ver");
+    Integer securityVersion = versionClaim.isNull() ? Integer.valueOf(0) : versionClaim.asInt();
+    if (securityVersion == null || securityVersion < 0) {
+      throw new JWTVerificationException("The access-token security version is invalid.");
+    }
     return new VerifiedAccessToken(
-        token.getSubject(),
-        token.getId(),
-        token.getExpiresAtAsInstant(),
-        versionClaim.isNull() ? 0 : versionClaim.asInt());
+        token.getSubject(), token.getId(), token.getExpiresAtAsInstant(), securityVersion);
   }
 
   private Map<String, Algorithm> parseKeys(String configuredKeys, String legacySecret) {
@@ -120,13 +128,19 @@ public class TokenService {
                   throw new IllegalStateException("JWT_KEYS must use kid:secret entries.");
                 }
                 result.put(
-                    entry.substring(0, separator),
-                    Algorithm.HMAC256(entry.substring(separator + 1)));
+                    entry.substring(0, separator), algorithm(entry.substring(separator + 1)));
               });
     } else {
-      result.put("primary", Algorithm.HMAC256(legacySecret));
+      result.put("primary", algorithm(legacySecret));
     }
     return Map.copyOf(result);
+  }
+
+  private Algorithm algorithm(String secret) {
+    if (secret == null || secret.length() < 32) {
+      throw new IllegalStateException("JWT signing secrets must contain at least 32 characters.");
+    }
+    return Algorithm.HMAC256(secret);
   }
 
   public record VerifiedAccessToken(

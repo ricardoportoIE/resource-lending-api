@@ -65,4 +65,90 @@ class TokenServiceTest {
 
     assertThrows(TokenInvalidoException.class, () -> service.verify(token));
   }
+
+  @Test
+  void rejectsSignedTokensMissingRevocableIdentityClaims() {
+    var service = service(mock(RevokedAccessTokenRepository.class));
+    var missingJwtId =
+        JWT.create()
+            .withIssuer("resource-lending-api")
+            .withSubject("student@example.com")
+            .withKeyId("primary")
+            .withExpiresAt(Instant.now().plusSeconds(60))
+            .sign(Algorithm.HMAC256(CURRENT_SECRET));
+    var missingSubject =
+        JWT.create()
+            .withIssuer("resource-lending-api")
+            .withKeyId("primary")
+            .withJWTId("jti")
+            .withExpiresAt(Instant.now().plusSeconds(60))
+            .sign(Algorithm.HMAC256(CURRENT_SECRET));
+
+    assertThrows(TokenInvalidoException.class, () -> service.verify(missingJwtId));
+    assertThrows(TokenInvalidoException.class, () -> service.verify(missingSubject));
+  }
+
+  @Test
+  void rejectsExpiredTokensAndTokensFromAnotherIssuer() {
+    var service = service(mock(RevokedAccessTokenRepository.class));
+    var expired = token("resource-lending-api", Instant.now().minusSeconds(1));
+    var foreignIssuer = token("another-service", Instant.now().plusSeconds(60));
+
+    assertThrows(TokenInvalidoException.class, () -> service.verify(expired));
+    assertThrows(TokenInvalidoException.class, () -> service.verify(foreignIssuer));
+  }
+
+  @Test
+  void rejectsInvalidSecurityVersionClaims() {
+    var service = service(mock(RevokedAccessTokenRepository.class));
+    var token =
+        JWT.create()
+            .withIssuer("resource-lending-api")
+            .withSubject("student@example.com")
+            .withKeyId("primary")
+            .withJWTId("test-jti")
+            .withClaim("ver", "administrator")
+            .withExpiresAt(Instant.now().plusSeconds(60))
+            .sign(Algorithm.HMAC256(CURRENT_SECRET));
+
+    assertThrows(TokenInvalidoException.class, () -> service.verify(token));
+  }
+
+  @Test
+  void rejectsKnownRevokedTokens() {
+    var repository = mock(RevokedAccessTokenRepository.class);
+    when(repository.existsById("test-jti")).thenReturn(true);
+    var service = service(repository);
+
+    assertThrows(
+        TokenInvalidoException.class,
+        () -> service.verify(token("resource-lending-api", Instant.now().plusSeconds(60))));
+  }
+
+  @Test
+  void refusesWeakSigningSecretsAtStartup() {
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            new TokenService(
+                "too-short",
+                "primary",
+                "",
+                Duration.ofMinutes(15),
+                mock(RevokedAccessTokenRepository.class)));
+  }
+
+  private TokenService service(RevokedAccessTokenRepository repository) {
+    return new TokenService(CURRENT_SECRET, "primary", "", Duration.ofMinutes(15), repository);
+  }
+
+  private String token(String issuer, Instant expiresAt) {
+    return JWT.create()
+        .withIssuer(issuer)
+        .withSubject("student@example.com")
+        .withKeyId("primary")
+        .withJWTId("test-jti")
+        .withExpiresAt(expiresAt)
+        .sign(Algorithm.HMAC256(CURRENT_SECRET));
+  }
 }
