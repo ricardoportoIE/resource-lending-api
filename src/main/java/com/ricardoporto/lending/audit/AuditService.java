@@ -16,9 +16,22 @@ public class AuditService {
   }
 
   public void record(String action, String entityType, Object entityId, String metadata) {
+    save(action, entityType, entityId, metadata, authorizationService.currentUser());
+  }
+
+  public void recordSystem(String action, String entityType, Object entityId, String metadata) {
+    save(action, entityType, entityId, metadata, null);
+  }
+
+  private void save(
+      String action,
+      String entityType,
+      Object entityId,
+      String metadata,
+      com.ricardoporto.lending.user.Usuario actor) {
     var event = new AuditEvent();
     event.setId(UUID.randomUUID());
-    event.setActor(authorizationService.currentUser());
+    event.setActor(actor);
     event.setAction(action);
     event.setEntityType(entityType);
     event.setEntityId(entityId.toString());

@@ -1,6 +1,7 @@
 package com.ricardoporto.lending.loan;
 
 import com.ricardoporto.lending.audit.AuditService;
+import com.ricardoporto.lending.reservation.ReservationService;
 import com.ricardoporto.lending.resource.ResourceItem;
 import com.ricardoporto.lending.resource.ResourceItemRepository;
 import com.ricardoporto.lending.resource.ResourceItemStatus;
@@ -34,6 +35,7 @@ public class LoanWorkflowService {
   private final UsuarioRepository usuarioRepository;
   private final AuthorizationService authorizationService;
   private final AuditService auditService;
+  private final ReservationService reservationService;
 
   public LoanWorkflowService(
       LoanRepository loanRepository,
@@ -41,20 +43,23 @@ public class LoanWorkflowService {
       ResourceItemRepository itemRepository,
       UsuarioRepository usuarioRepository,
       AuthorizationService authorizationService,
-      AuditService auditService) {
+      AuditService auditService,
+      ReservationService reservationService) {
     this.loanRepository = loanRepository;
     this.policyRepository = policyRepository;
     this.itemRepository = itemRepository;
     this.usuarioRepository = usuarioRepository;
     this.authorizationService = authorizationService;
     this.auditService = auditService;
+    this.reservationService = reservationService;
   }
 
   @Transactional(noRollbackFor = ApiException.class)
   public LoanResponse request(CreateLoanRequest request) {
     markOverdueLoans();
     var borrower = resolveBorrower(request.borrowerId());
-    var item = requireItem(request.resourceItemId());
+    var item = requireItemForUpdate(request.resourceItemId());
+    reservationService.claimReadyReservation(borrower, item);
     assertCanBorrow(borrower, item);
 
     var loan = new Loan();
@@ -112,7 +117,7 @@ public class LoanWorkflowService {
   public LoanResponse collect(UUID id) {
     var loan = requireLoan(id);
     transition(loan, LoanStatus.APPROVED, LoanStatus.ACTIVE);
-    var item = loan.getResourceItem();
+    var item = requireItemForUpdate(loan.getResourceItem().getId());
     if (item.getStatus() != ResourceItemStatus.AVAILABLE) {
       throw conflict("RESOURCE_UNAVAILABLE", "The selected resource item is not available.");
     }
@@ -135,10 +140,11 @@ public class LoanWorkflowService {
     }
     loan.setStatus(LoanStatus.RETURNED);
     loan.setReturnedAt(Instant.now());
-    var item = loan.getResourceItem();
+    var item = requireItemForUpdate(loan.getResourceItem().getId());
     item.setStatus(ResourceItemStatus.AVAILABLE);
     item.setUpdatedAt(Instant.now());
     itemRepository.save(item);
+    reservationService.promoteNext(item);
     return saveAndAudit(loan, "LOAN_RETURNED");
   }
 
@@ -248,9 +254,9 @@ public class LoanWorkflowService {
     return loanRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Loan", id));
   }
 
-  private ResourceItem requireItem(UUID id) {
+  private ResourceItem requireItemForUpdate(UUID id) {
     return itemRepository
-        .findById(id)
+        .findByIdForUpdate(id)
         .orElseThrow(() -> new ResourceNotFoundException("Resource item", id));
   }
 }

@@ -3,8 +3,8 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-23_passing-brightgreen)
-![Modernisation](https://img.shields.io/badge/modernisation-phase_6_complete-blue)
+![Tests](https://img.shields.io/badge/tests-25_passing-brightgreen)
+![Modernisation](https://img.shields.io/badge/modernisation-phase_7_complete-blue)
 
 A Java and Spring Boot REST API being re-engineered into a production-oriented platform for lending organisational resources. It currently manages library-style customers, catalogue exemplars and loans while its staged roadmap expands the domain to equipment, reservations, policies, auditability and concurrency-safe workflows.
 
@@ -26,6 +26,8 @@ Lending systems look simple until availability, authorisation and simultaneous r
 - Paginated catalogue queries filtered by resource type, category and item status.
 - An explicit loan state machine with dedicated request, approval, collection, return, rejection and cancellation operations.
 - Role- and resource-type loan policies, overdue blocking, active-loan limits and immutable audit events.
+- FIFO reservations with ready windows, cancellation, expiry and automatic promotion after returns.
+- Pessimistic item locking plus database uniqueness protection for concurrency-safe last-item claims.
 - Feature-oriented modular monolith under `com.ricardoporto.lending`.
 - Thin controllers backed by transactional application services.
 - Explicit DTO mappers; JPA entities do not cross the HTTP boundary.
@@ -46,8 +48,8 @@ Lending systems look simple until availability, authorisation and simultaneous r
 | 4 — Authentication and RBAC | Complete | Refresh-token lifecycle, roles, ownership and 401/403 authorization tests |
 | 5 — Catalogue and inventory | Complete | Resources, physical items, lifecycle statuses, filters and pagination |
 | 6 — Loan workflow | Complete | State transitions, due-date policies, limits, overdue checks and audit events |
-| 7 — Reservations and concurrency | Next | Waiting queue, promotion, expiry and last-item locking |
-| 8–10 — Operations and portfolio | Planned | Observability, Docker Compose, CI and final architecture documentation |
+| 7 — Reservations and concurrency | Complete | FIFO queue, promotion, expiry, pessimistic locking and a concurrent race test |
+| 8–10 — Operations and portfolio | Next | Observability, Docker Compose, CI and final architecture documentation |
 
 ## Architecture
 
@@ -80,7 +82,7 @@ com.ricardoporto.lending
 
 Controllers depend only on application services. Services own transaction boundaries and coordinate repositories. Spring Data REST was removed so repositories cannot accidentally expose entities outside the documented API. A structural test protects the controller boundary.
 
-The main decisions and trade-offs are recorded in [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md), [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md), [ADR-003: Resource and ResourceItem](docs/adr/003-resource-and-resource-item.md) and [ADR-004: Explicit loan workflow](docs/adr/004-explicit-loan-workflow.md).
+The main decisions and trade-offs are recorded in [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md), [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md), [ADR-003: Resource and ResourceItem](docs/adr/003-resource-and-resource-item.md), [ADR-004: Explicit loan workflow](docs/adr/004-explicit-loan-workflow.md) and [ADR-005: Reservations and concurrency](docs/adr/005-reservations-and-concurrency.md).
 
 ## Technology baseline
 
@@ -111,7 +113,7 @@ On Windows:
 .\mvnw.cmd clean verify
 ```
 
-No locally installed database or database credentials are required. The command starts a pinned `postgres:17.6-alpine` container, applies production migrations and test-only fixtures, runs all 23 tests, checks formatting and packages the executable JAR.
+No locally installed database or database credentials are required. The command starts a pinned `postgres:17.6-alpine` container, applies production migrations and test-only fixtures, runs all 25 tests, checks formatting and packages the executable JAR.
 
 ## Run the API locally
 
@@ -144,6 +146,8 @@ Swagger UI is available at `http://localhost:8080/swagger-ui/index.html`.
 | `DB_PASSWORD` | Yes | Database password supplied by the runtime environment |
 | `JWT_SECRET` | Yes | HMAC signing secret; use at least 32 random characters |
 | `CORS_ALLOWED_ORIGINS` | No | Comma-separated browser origins; cross-origin access is denied when empty |
+| `RESERVATION_READY_WINDOW` | No | ISO-8601 pickup window; defaults to `P2D` |
+| `RESERVATION_EXPIRY_SCAN_MS` | No | Milliseconds between expiry scans; defaults to `60000` |
 
 `.env` files are ignored by Git. Only `.env.example`, containing placeholders, is versioned.
 
@@ -156,6 +160,7 @@ src/main/resources/db/migration/V1__initial_schema.sql
 src/main/resources/db/migration/V2__authentication_and_ownership.sql
 src/main/resources/db/migration/V3__resource_catalogue.sql
 src/main/resources/db/migration/V4__loan_workflow.sql
+src/main/resources/db/migration/V5__reservations_and_concurrency.sql
 ```
 
 They create the legacy-compatible domain tables and add role reference data, customer ownership and hashed refresh-token persistence with the required keys, constraints and indexes. Hibernate runs with `ddl-auto=validate`, so a mismatch fails startup rather than silently modifying the database.
@@ -230,6 +235,16 @@ POST /api/v1/loans/{id}/cancel
 ```
 
 The API exposes commands for each valid transition instead of a generic status patch. `STUDENT` users request and inspect their own loans; `STAFF` and `ADMIN` can operate the approval and physical hand-off workflow. Policy rows determine active-loan limits and due dates for every role/resource-type combination.
+
+### Reservations
+
+```text
+POST   /api/v1/resources/{resourceId}/reservations
+GET    /api/v1/reservations
+DELETE /api/v1/reservations/{id}
+```
+
+Reservations are ordered FIFO. An available item makes the head reservation immediately `READY`; otherwise it remains `WAITING`. Returns, cancellations and expirations promote the next user. A ready reservation owns a specific item for the configured pickup window.
 
 ## Build quality
 
