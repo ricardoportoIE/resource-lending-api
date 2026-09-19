@@ -17,4 +17,7 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
   boolean existsByResourceItemIdAndStatusIn(UUID resourceItemId, Collection<LoanStatus> statuses);
 
   List<Loan> findAllByStatusAndDueAtBefore(LoanStatus status, Instant now);
+
+  List<Loan> findAllByStatusAndDueAtBetween(
+      LoanStatus status, Instant dueAtStart, Instant dueAtEnd);
 }

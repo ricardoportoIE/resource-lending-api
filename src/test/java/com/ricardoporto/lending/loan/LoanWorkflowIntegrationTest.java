@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ricardoporto.lending.audit.AuditEventRepository;
+import com.ricardoporto.lending.outbox.OutboxEventRepository;
 import com.ricardoporto.lending.resource.Resource;
 import com.ricardoporto.lending.resource.ResourceItem;
 import com.ricardoporto.lending.resource.ResourceItemRepository;
@@ -46,6 +47,7 @@ class LoanWorkflowIntegrationTest extends PostgresIntegrationTest {
   @Autowired private ResourceItemRepository itemRepository;
   @Autowired private LoanRepository loanRepository;
   @Autowired private AuditEventRepository auditEventRepository;
+  @Autowired private OutboxEventRepository outboxEventRepository;
 
   private Resource resource;
   private ResourceItem item;
@@ -79,6 +81,18 @@ class LoanWorkflowIntegrationTest extends PostgresIntegrationTest {
 
     transition(loanId, "approve", "staff@email.com", 200)
         .andExpect(jsonPath("$.status").value("APPROVED"));
+    var approvalEvent =
+        outboxEventRepository.findByDeduplicationKey("LOAN_APPROVED:" + loanId).orElseThrow();
+    assertEquals("LOAN_APPROVED", approvalEvent.getEventType());
+    mvc.perform(
+            get("/api/v1/admin/outbox-events?status=PENDING")
+                .header(HttpHeaders.AUTHORIZATION, bearer("student1@email.com")))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            get("/api/v1/admin/outbox-events?status=PENDING")
+                .header(HttpHeaders.AUTHORIZATION, bearer("admin@email.com")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].eventType").value("LOAN_APPROVED"));
     var active =
         transition(loanId, "collect", "staff@email.com", 200)
             .andExpect(jsonPath("$.status").value("ACTIVE"))

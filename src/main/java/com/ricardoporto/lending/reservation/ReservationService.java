@@ -1,6 +1,7 @@
 package com.ricardoporto.lending.reservation;
 
 import com.ricardoporto.lending.audit.AuditService;
+import com.ricardoporto.lending.outbox.OutboxService;
 import com.ricardoporto.lending.resource.Resource;
 import com.ricardoporto.lending.resource.ResourceItem;
 import com.ricardoporto.lending.resource.ResourceItemRepository;
@@ -14,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -32,6 +34,7 @@ public class ReservationService {
   private final ResourceItemRepository itemRepository;
   private final AuthorizationService authorizationService;
   private final AuditService auditService;
+  private final OutboxService outboxService;
   private final Duration readyWindow;
 
   public ReservationService(
@@ -40,12 +43,14 @@ public class ReservationService {
       ResourceItemRepository itemRepository,
       AuthorizationService authorizationService,
       AuditService auditService,
+      OutboxService outboxService,
       @Value("${api.reservation.ready-window}") Duration readyWindow) {
     this.reservationRepository = reservationRepository;
     this.resourceRepository = resourceRepository;
     this.itemRepository = itemRepository;
     this.authorizationService = authorizationService;
     this.auditService = auditService;
+    this.outboxService = outboxService;
     this.readyWindow = readyWindow;
   }
 
@@ -77,6 +82,7 @@ public class ReservationService {
     var saved = reservationRepository.save(reservation);
     auditService.record(
         "RESERVATION_CREATED", "Reservation", saved.getId(), "status=" + saved.getStatus());
+    if (saved.getStatus() == ReservationStatus.READY) publishReady(saved);
     return toResponse(saved);
   }
 
@@ -170,6 +176,21 @@ public class ReservationService {
       auditService.recordSystem(
           "RESERVATION_READY", "Reservation", reservation.getId(), "status=READY");
     }
+    publishReady(reservation);
+  }
+
+  private void publishReady(Reservation reservation) {
+    outboxService.publish(
+        "RESERVATION_READY",
+        "Reservation",
+        reservation.getId(),
+        Map.of(
+            "reservationId", reservation.getId(),
+            "userEmail", reservation.getUser().getEmail(),
+            "resourceId", reservation.getResource().getId(),
+            "resourceItemId", reservation.getReadyItem().getId(),
+            "expiresAt", reservation.getExpiresAt()),
+        "RESERVATION_READY:" + reservation.getId());
   }
 
   private void makeReady(Reservation reservation, ResourceItem item, Instant now) {

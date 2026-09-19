@@ -4,8 +4,8 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-22_passing-brightgreen)
-![Coverage](https://img.shields.io/badge/line_coverage-87.62%25-brightgreen)
+![Tests](https://img.shields.io/badge/tests-24_passing-brightgreen)
+![Coverage](https://img.shields.io/badge/line_coverage-86.70%25-brightgreen)
 
 A production-oriented REST API for lending shared organisational resources: books, laptops, rooms, tools and other individually tracked assets. It handles catalogue inventory, policy-driven loans, FIFO reservations and simultaneous claims without lending the same physical item twice.
 
@@ -20,6 +20,7 @@ This repository is also a modernization case study. An academic library CRUD app
 - `STUDENT`, `STAFF` and `ADMIN` authorization at both HTTP and service boundaries.
 - Policy-driven due dates and active-loan limits by role and resource type.
 - Transactional, immutable audit events for domain transitions.
+- Transactional Outbox notifications with idempotent delivery, retries and exponential backoff.
 - RFC 9457 Problem Details with stable error codes and correlation IDs.
 - Flyway-only PostgreSQL schema management with Hibernate validation.
 - Testcontainers integration and concurrency tests against PostgreSQL 17.
@@ -39,6 +40,9 @@ flowchart LR
     Repositories --> DB[(PostgreSQL 17)]
     Flyway[Flyway migrations] --> DB
     Services --> Audit[Audit events]
+    Services --> Outbox[(Transactional Outbox)]
+    Outbox --> Worker[Retrying notification worker]
+    Worker --> External[Log or webhook adapter]
     Scheduler[Reservation expiry scheduler] --> Services
     Observability[Actuator, Prometheus and ECS logs] -. observes .-> Services
 ```
@@ -115,7 +119,7 @@ PowerShell:
 .\mvnw.cmd clean verify
 ```
 
-The build starts an isolated `postgres:17.6-alpine` Testcontainer, applies every production migration from an empty database, runs 22 tests, packages the executable JAR, checks formatting and enforces at least 75% line and 35% branch coverage. The HTML report is generated at `target/site/jacoco/index.html`.
+The build starts an isolated `postgres:17.6-alpine` Testcontainer, applies every production migration from an empty database, runs 24 tests, packages the executable JAR, checks formatting and enforces at least 75% line and 35% branch coverage. The HTML report is generated at `target/site/jacoco/index.html`.
 
 GitHub Actions repeats verification on every push and pull request to `main`, uploads the coverage report and builds the production image.
 
@@ -131,6 +135,7 @@ All business endpoints are versioned under `/api/v1`.
 | Loans | `POST/GET /loans`, `GET /loans/{id}` |
 | Loan commands | `POST /loans/{id}/approve`, `/reject`, `/collect`, `/return`, `/cancel` |
 | Reservations | `POST /resources/{id}/reservations`, `GET /reservations`, `DELETE /reservations/{id}` |
+| Outbox operations | `GET /admin/outbox-events?status=FAILED` (`ADMIN` only) |
 
 Paginated catalogue queries support `type`, `category`, `status`, `page`, `size` and `sort` parameters. The generated OpenAPI document is the source of truth for request and response schemas.
 
@@ -197,12 +202,18 @@ Runtime secrets are environment-only. `.env` is ignored by Git; the versioned `.
 | `CORS_ALLOWED_ORIGINS` | No | Empty means browser cross-origin access is denied |
 | `RESERVATION_READY_WINDOW` | No | `P2D` |
 | `RESERVATION_EXPIRY_SCAN_MS` | No | `60000` |
+| `OUTBOX_POLL_MS` | No | Delivery worker interval; `5000` |
+| `OUTBOX_BATCH_SIZE` | No | Events locked per worker run; `25` |
+| `OUTBOX_MAX_ATTEMPTS` | No | Attempts before an event becomes `FAILED`; `5` |
+| `OUTBOX_RETRY_BASE` | No | ISO-8601 exponential backoff base; `PT30S` |
+| `NOTIFICATION_WEBHOOK_URL` | No | Blank uses the fake log adapter; otherwise receives JSON via POST |
+| `NOTIFICATION_DUE_SOON_WINDOW` | No | Lead time for due-soon events; `PT24H` |
 | `LOG_FORMAT` | No | `ecs`; use `plain` for local human-readable logs |
 | `APP_PORT` | No | Host port `8080` in Docker Compose |
 
 ## Database evolution and modernization
 
-Flyway is the only schema authority and Hibernate runs with `ddl-auto=validate`. Six versioned migrations introduce authentication, inventory, loan policies, audit events, reservations and concurrency constraints.
+Flyway is the only schema authority and Hibernate runs with `ddl-auto=validate`. Seven versioned migrations introduce authentication, inventory, loan policies, audit events, reservations, concurrency constraints and the transactional Outbox.
 
 The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the replacement domain became complete. Migration V6 moves its tables into a dedicated `legacy` schema rather than dropping them, preserving historical data while keeping the active `public` schema and OpenAPI contract focused on resources, items, loans and reservations.
 
@@ -215,6 +226,7 @@ The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the re
 | Concurrency | FIFO reservations, expiry, row locks and database uniqueness backstops |
 | Operations and delivery | OpenAPI, structured logs, metrics, Docker Compose, coverage gates and CI |
 | Portfolio finish | Legacy API retirement, faithful diagrams and verified examples |
+| Async integration | Transactional Outbox, due-soon jobs, idempotent notification delivery and failed-event operations |
 
 The project now lives in the professional GitHub account [`ricardoportoIE`](https://github.com/ricardoportoIE/resource-lending-api); the repository history retains the original authorship and the complete modernization journey.
 

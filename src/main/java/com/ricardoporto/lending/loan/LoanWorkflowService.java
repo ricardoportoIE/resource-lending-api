@@ -1,6 +1,7 @@
 package com.ricardoporto.lending.loan;
 
 import com.ricardoporto.lending.audit.AuditService;
+import com.ricardoporto.lending.outbox.OutboxService;
 import com.ricardoporto.lending.reservation.ReservationService;
 import com.ricardoporto.lending.resource.ResourceItem;
 import com.ricardoporto.lending.resource.ResourceItemRepository;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -36,6 +38,7 @@ public class LoanWorkflowService {
   private final AuthorizationService authorizationService;
   private final AuditService auditService;
   private final ReservationService reservationService;
+  private final OutboxService outboxService;
 
   public LoanWorkflowService(
       LoanRepository loanRepository,
@@ -44,7 +47,8 @@ public class LoanWorkflowService {
       UsuarioRepository usuarioRepository,
       AuthorizationService authorizationService,
       AuditService auditService,
-      ReservationService reservationService) {
+      ReservationService reservationService,
+      OutboxService outboxService) {
     this.loanRepository = loanRepository;
     this.policyRepository = policyRepository;
     this.itemRepository = itemRepository;
@@ -52,6 +56,7 @@ public class LoanWorkflowService {
     this.authorizationService = authorizationService;
     this.auditService = auditService;
     this.reservationService = reservationService;
+    this.outboxService = outboxService;
   }
 
   @Transactional(noRollbackFor = ApiException.class)
@@ -225,6 +230,18 @@ public class LoanWorkflowService {
   private LoanResponse saveAndAudit(Loan loan, String action) {
     var saved = loanRepository.save(loan);
     auditService.record(action, "Loan", saved.getId(), "status=" + saved.getStatus());
+    if ("LOAN_APPROVED".equals(action)) {
+      outboxService.publish(
+          action,
+          "Loan",
+          saved.getId(),
+          Map.of(
+              "loanId", saved.getId(),
+              "borrowerEmail", saved.getBorrower().getEmail(),
+              "resourceItemId", saved.getResourceItem().getId(),
+              "assetTag", saved.getResourceItem().getAssetTag()),
+          action + ":" + saved.getId());
+    }
     return LoanMapper.toResponse(saved);
   }
 

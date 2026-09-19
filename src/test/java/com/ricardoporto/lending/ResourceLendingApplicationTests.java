@@ -31,7 +31,8 @@ class ResourceLendingApplicationTests extends PostgresIntegrationTest {
             where table_schema = 'public'
               and table_name in (
                 'usuarios', 'refresh_tokens', 'resources', 'resource_items', 'loans',
-                'loan_policies', 'audit_events', 'reservations'
+                'loan_policies', 'audit_events', 'reservations', 'outbox_events',
+                'notification_deliveries'
               )
             """,
             Integer.class);
@@ -67,7 +68,10 @@ class ResourceLendingApplicationTests extends PostgresIntegrationTest {
                 'idx_reservations_resource_queue',
                 'idx_reservations_user_status',
                 'uk_reservations_user_resource_open',
-                'uk_loans_item_open'
+                'uk_loans_item_open',
+                'idx_outbox_delivery_queue',
+                'idx_outbox_created_at',
+                'idx_notification_deliveries_event'
               )
             """,
             Integer.class);
@@ -79,10 +83,10 @@ class ResourceLendingApplicationTests extends PostgresIntegrationTest {
         jdbcTemplate.queryForObject(
             "select count(*) from perfis where nome = 'ROLE_USER'", Integer.class);
 
-    assertEquals(7, successfulMigrations);
-    assertEquals(8, domainTables);
+    assertEquals(8, successfulMigrations);
+    assertEquals(10, domainTables);
     assertEquals(8, preservedLegacyTables);
-    assertEquals(14, requiredIndexes);
+    assertEquals(17, requiredIndexes);
     assertEquals(3, configuredRoles);
     assertEquals(0, legacyRoles);
   }
