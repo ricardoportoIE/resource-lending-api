@@ -1,0 +1,24 @@
+{
+  "name": "resource-lending-console",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "check": "tsc -b --pretty false",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "6.1.1",
+    "vite": "8.3.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

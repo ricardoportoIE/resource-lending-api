@@ -4,8 +4,8 @@
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-27_passing-brightgreen)
-![Coverage](https://img.shields.io/badge/line_coverage-85.60%25-brightgreen)
+![Tests](https://img.shields.io/badge/backend_tests-29_passing-brightgreen)
+![Coverage](https://img.shields.io/badge/line_coverage-85.74%25-brightgreen)
 
 A production-oriented REST API for lending shared organisational resources: books, laptops, rooms, tools and other individually tracked assets. It handles catalogue inventory, policy-driven loans, FIFO reservations and simultaneous claims without lending the same physical item twice.
 
@@ -24,6 +24,7 @@ This repository is also a modernization case study. An academic library CRUD app
 - Persistent `Idempotency-Key` replay for duplicate-sensitive loan and reservation commands.
 - Staff operational dashboard, demand/utilization analytics and RFC 4180-compatible CSV exports.
 - OpenTelemetry traces across HTTP, repositories and scheduled jobs, with four domain metrics.
+- Responsive React/TypeScript console for borrowers and role-aware staff operations.
 - RFC 9457 Problem Details with stable error codes and correlation IDs.
 - Flyway-only PostgreSQL schema management with Hibernate validation.
 - Testcontainers integration and concurrency tests against PostgreSQL 17.
@@ -35,7 +36,9 @@ This repository is also a modernization case study. An academic library CRUD app
 
 ```mermaid
 flowchart LR
+    Browser[React operations console] --> Proxy[Nginx same-origin proxy]
     Client[API client] --> Security[JWT authentication and RBAC]
+    Proxy --> Security
     Security --> Controllers[REST controllers]
     Controllers --> Services[Transactional application services]
     Services --> Locks[Pessimistic item locks]
@@ -105,6 +108,7 @@ The database is started first and must pass its health check before the API star
 | `http://localhost:9090` | Prometheus query UI | Loopback only |
 | `http://localhost:3000` | Provisioned Grafana dashboard | `.env` credentials |
 | `http://localhost:16686` | Jaeger trace explorer | Loopback only |
+| `http://localhost:3001` | React operational console | Loopback only |
 
 Stop the stack while retaining database data:
 
@@ -130,7 +134,7 @@ PowerShell:
 
 The build starts an isolated `postgres:17.6-alpine` Testcontainer, applies every production migration from an empty database, runs the complete test suite, packages the executable JAR, checks formatting and enforces at least 75% line and 35% branch coverage. The HTML report is generated at `target/site/jacoco/index.html`.
 
-GitHub Actions repeats verification on every push and pull request to `main`, uploads the coverage report and builds the production image.
+GitHub Actions repeats backend and frontend verification on every push and pull request to `main`, audits npm dependencies, uploads the coverage report and builds both production images.
 
 ## API surface
 
@@ -138,7 +142,7 @@ All business endpoints are versioned under `/api/v1`.
 
 | Area | Endpoints |
 |---|---|
-| Authentication | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` |
+| Authentication | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`; `GET /users/me` |
 | Catalogue | `GET/POST /resources`, `GET/PATCH /resources/{id}` |
 | Inventory | `POST /resources/{id}/items`, `PATCH /resource-items/{id}/status` |
 | Loans | `POST/GET /loans`, `GET /loans/{id}` |
@@ -198,6 +202,7 @@ Every response includes `X-Correlation-ID`. A safe client-supplied ID is preserv
 | Security | Spring Security, BCrypt, Auth0 Java JWT 4.4.0 |
 | Database | PostgreSQL 17, Flyway |
 | Documentation | springdoc-openapi 2.8.8, Swagger UI |
+| Frontend | React 19, TypeScript 7, Vite 8, unprivileged Nginx |
 | Observability | Micrometer, OpenTelemetry/OTLP, Prometheus 3, Grafana 13, Jaeger 2, ECS logging |
 | Testing | JUnit 5, MockMvc, Testcontainers 2.0.5 |
 | Quality and delivery | Maven Wrapper 3.9.9, Enforcer, Spotless, JaCoCo, Docker, GitHub Actions |
@@ -229,6 +234,7 @@ Runtime secrets are environment-only. `.env` is ignored by Git; the versioned `.
 | `PROMETHEUS_PORT` | No | Loopback-only Prometheus port; `9090` |
 | `GRAFANA_PORT` | No | Loopback-only Grafana port; `3000` |
 | `JAEGER_UI_PORT` | No | Loopback-only Jaeger UI port; `16686` |
+| `FRONTEND_PORT` | No | Loopback-only operational console port; `3001` |
 | `GRAFANA_ADMIN_PASSWORD` | Yes in Compose | Local Grafana administrator password |
 | `TRACING_SAMPLING_PROBABILITY` | No | Trace sample ratio; Compose uses `1.0`, application default is `0.0` |
 
@@ -251,6 +257,7 @@ The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the re
 | Reliable commands | Atomic idempotency claims, request fingerprinting and exact response replay |
 | Operational intelligence | Staff dashboards, current utilization, demand ranking, queue wait time and CSV export |
 | Distributed observability | OTLP traces, domain metrics and a provisioned Prometheus/Grafana/Jaeger stack |
+| Demonstrable product | Role-aware React console for catalogue, lending, reservations and operations |
 
 The project now lives in the professional GitHub account [`ricardoportoIE`](https://github.com/ricardoportoIE/resource-lending-api); the repository history retains the original authorship and the complete modernization journey.
 
@@ -259,6 +266,7 @@ The project now lives in the professional GitHub account [`ricardoportoIE`](http
 - [Architecture, domain model and concurrency flows](docs/architecture.md)
 - [Verified cURL workflow](docs/api-examples.md)
 - [Observability and troubleshooting runbook](docs/troubleshooting.md)
+- [Frontend development and verification](frontend/README.md)
 - [Recruiter, CV and GitHub summary](docs/portfolio-summary.md)
 - [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md)
 - [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md)
@@ -269,7 +277,8 @@ The project now lives in the professional GitHub account [`ricardoportoIE`](http
 - [ADR-007: Command idempotency](docs/adr/007-command-idempotency.md)
 - [ADR-008: Operational reporting read model](docs/adr/008-operational-reporting-read-model.md)
 - [ADR-009: Distributed observability](docs/adr/009-distributed-observability.md)
+- [ADR-010: Operational frontend](docs/adr/010-operational-frontend.md)
 
 ## Scope boundaries
 
-The current implementation uses a fake log/webhook notification adapter and a single-process scheduler. Cloud infrastructure, rate limiting and a frontend remain extension points rather than features presented as complete. Access tokens remain valid until their short expiry after logout; refresh tokens are revoked server-side immediately.
+The current implementation uses a fake log/webhook notification adapter and a single-process scheduler. Cloud infrastructure and rate limiting remain extension points rather than features presented as complete. Access tokens remain valid until their short expiry after logout; refresh tokens are revoked server-side immediately.

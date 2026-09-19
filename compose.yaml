@@ -91,6 +91,16 @@ services:
       - jaeger
     restart: unless-stopped
 
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3001}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   prometheus-data:

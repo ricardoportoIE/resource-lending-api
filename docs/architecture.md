@@ -6,6 +6,7 @@ This document describes the implemented system. It deliberately excludes roadmap
 
 ```mermaid
 flowchart TB
+    Browser[React operational console] --> Proxy[Nginx same-origin /api proxy]
     subgraph HTTP[HTTP boundary]
         Correlation[CorrelationIdFilter]
         JWT[SecurityFilter]
@@ -28,6 +29,7 @@ flowchart TB
         Flyway[Flyway V1-V8]
     end
 
+    Proxy --> Correlation
     Correlation --> JWT --> Controllers
     Controllers --> Auth
     Controllers --> Catalogue
