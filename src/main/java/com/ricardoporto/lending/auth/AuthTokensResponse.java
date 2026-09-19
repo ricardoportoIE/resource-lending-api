@@ -1,10 +1,10 @@
 package com.ricardoporto.lending.auth;
 
-public record AuthTokensDto(
+public record AuthTokensResponse(
     String accessToken, String refreshToken, String tokenType, long expiresIn) {
   @Override
   public String toString() {
-    return "AuthTokensDto[accessToken=<redacted>, refreshToken=<redacted>, tokenType="
+    return "AuthTokensResponse[accessToken=<redacted>, refreshToken=<redacted>, tokenType="
         + tokenType
         + ", expiresIn="
         + expiresIn

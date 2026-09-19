@@ -1,7 +1,7 @@
 package com.ricardoporto.lending.auth;
 
-import com.ricardoporto.lending.user.UsuarioCadastroDto;
-import com.ricardoporto.lending.user.UsuarioDto;
+import com.ricardoporto.lending.user.RegistrationRequest;
+import com.ricardoporto.lending.user.UserResponse;
 import com.ricardoporto.lending.user.UsuarioService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,17 +31,18 @@ public class AutenticacaoController {
   }
 
   @PostMapping("/register")
-  public ResponseEntity<UsuarioDto> register(@Valid @RequestBody UsuarioCadastroDto request) {
+  public ResponseEntity<UserResponse> register(@Valid @RequestBody RegistrationRequest request) {
     return ResponseEntity.status(201).body(usuarioService.register(request));
   }
 
   @PostMapping("/login")
-  public ResponseEntity<AuthTokensDto> login(@Valid @RequestBody UsuarioAutenticacaoDTO request) {
+  public ResponseEntity<AuthTokensResponse> login(@Valid @RequestBody LoginRequest request) {
     return ResponseEntity.ok(loginService.login(request));
   }
 
   @PostMapping("/refresh")
-  public ResponseEntity<AuthTokensDto> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+  public ResponseEntity<AuthTokensResponse> refresh(
+      @Valid @RequestBody RefreshTokenRequest request) {
     return ResponseEntity.ok(refreshTokenService.rotate(request.refreshToken()));
   }
 

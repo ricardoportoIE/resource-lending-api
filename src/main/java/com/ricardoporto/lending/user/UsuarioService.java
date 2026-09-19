@@ -25,7 +25,7 @@ public class UsuarioService {
   }
 
   @Transactional
-  public UsuarioDto register(UsuarioCadastroDto request) {
+  public UserResponse register(RegistrationRequest request) {
     var normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
     if (usuarioRepository.existsByEmail(normalizedEmail)) {
       throw new ApiException(
@@ -34,7 +34,7 @@ public class UsuarioService {
 
     var usuario = new Usuario();
     usuario.setEmail(normalizedEmail);
-    usuario.setSenha(passwordEncoder.encode(request.senha()));
+    usuario.setSenha(passwordEncoder.encode(request.password()));
     usuario.setConfirmado(true);
     var studentProfile =
         perfilRepository
@@ -45,6 +45,6 @@ public class UsuarioService {
                         "The STUDENT role was not initialized by the database migration."));
     usuario.setPerfis(List.of(studentProfile));
     var saved = usuarioRepository.save(usuario);
-    return new UsuarioDto(saved.getId(), saved.getEmail(), saved.isConfirmado());
+    return new UserResponse(saved.getId(), saved.getEmail(), saved.isConfirmado());
   }
 }

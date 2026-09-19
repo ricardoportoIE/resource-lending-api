@@ -5,14 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.ricardoporto.lending.customer.BaseAPIIntegracaoTest;
+import com.ricardoporto.lending.support.BaseApiIntegrationTest;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 
-class ResourceCatalogueIntegrationTest extends BaseAPIIntegracaoTest {
+class ResourceCatalogueIntegrationTest extends BaseApiIntegrationTest {
 
   @Test
   void managesMultipleItemsAndFiltersAvailability() {
@@ -51,10 +51,19 @@ class ResourceCatalogueIntegrationTest extends BaseAPIIntegracaoTest {
         rest.exchange(
             "/api/v1/resources?type=LAPTOP&status=AVAILABLE&category=IT",
             HttpMethod.GET,
-            new HttpEntity<>(getHeaders()),
+            new HttpEntity<>(headers()),
             String.class);
     assertEquals(HttpStatus.OK, filtered.getStatusCode());
     assertTrue(filtered.getBody().contains(suffix));
+
+    var withoutCategory =
+        rest.exchange(
+            "/api/v1/resources?type=LAPTOP&status=AVAILABLE",
+            HttpMethod.GET,
+            new HttpEntity<>(headers()),
+            String.class);
+    assertEquals(HttpStatus.OK, withoutCategory.getStatusCode());
+    assertTrue(withoutCategory.getBody().contains(suffix));
 
     var detail = get("/api/v1/resources/" + created.getBody().id(), ResourceResponse.class);
     assertEquals(2, detail.getBody().items().size());
@@ -70,7 +79,7 @@ class ResourceCatalogueIntegrationTest extends BaseAPIIntegracaoTest {
                 """
                 {"name":"Invalid","type":"SPACESHIP","loanable":true}
                 """,
-                getHeaders()),
+                headers()),
             String.class);
     assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     assertTrue(response.getBody().contains("MALFORMED_REQUEST"));

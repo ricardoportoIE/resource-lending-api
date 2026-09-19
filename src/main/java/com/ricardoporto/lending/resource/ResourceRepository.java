@@ -15,7 +15,7 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID> {
       select distinct resource from Resource resource
       left join ResourceItem item on item.resource = resource
       where (:type is null or resource.type = :type)
-        and (:category is null or lower(resource.category) = lower(:category))
+        and (coalesce(:category, '') = '' or lower(resource.category) = lower(:category))
         and (:status is null or item.status = :status)
       """)
   Page<Resource> findFiltered(

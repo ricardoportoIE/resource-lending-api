@@ -68,11 +68,11 @@ class SecurityConfigTest extends PostgresIntegrationTest {
 
   @Test
   void protectedEndpointWithoutOrWithInvalidTokenReturns401() throws Exception {
-    mvc.perform(get("/api/v1/exemplares"))
+    mvc.perform(get("/api/v1/resources"))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
 
-    mvc.perform(get("/api/v1/exemplares").header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+    mvc.perform(get("/api/v1/resources").header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
   }
@@ -92,12 +92,22 @@ class SecurityConfigTest extends PostgresIntegrationTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
+    var created =
+        mvc.perform(
+                post("/api/v1/resources")
+                    .header(HttpHeaders.AUTHORIZATION, bearer("staff@email.com"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(resource))
+            .andExpect(status().isCreated())
+            .andReturn();
+    var resourceId =
+        objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
     mvc.perform(
-            post("/api/v1/resources")
-                .header(HttpHeaders.AUTHORIZATION, bearer("staff@email.com"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(resource))
-        .andExpect(status().isCreated());
+            post("/api/v1/resources/" + resourceId + "/reservations")
+                .header(HttpHeaders.AUTHORIZATION, bearer("student1@email.com")))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.status").value("WAITING"));
   }
 
   @Test
@@ -109,7 +119,7 @@ class SecurityConfigTest extends PostgresIntegrationTest {
                 .content(credentials(email, "secure-password")))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.email").value(email))
-        .andExpect(jsonPath("$.senha").doesNotExist());
+        .andExpect(jsonPath("$.password").doesNotExist());
 
     var saved = usuarioRepository.findByEmail(email);
     assertNotNull(saved);
@@ -145,25 +155,6 @@ class SecurityConfigTest extends PostgresIntegrationTest {
     refresh(refreshToken, 401);
   }
 
-  @Test
-  void studentOnlyReadsOwnedCustomerAndLoans() throws Exception {
-    var authorization = bearer("student1@email.com");
-
-    mvc.perform(get("/api/v1/clientes").header(HttpHeaders.AUTHORIZATION, authorization))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.length()").value(1))
-        .andExpect(jsonPath("$[0].codigo").value(100));
-    mvc.perform(get("/api/v1/clientes/101").header(HttpHeaders.AUTHORIZATION, authorization))
-        .andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
-    mvc.perform(get("/api/v1/emprestimos").header(HttpHeaders.AUTHORIZATION, authorization))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.length()").value(1))
-        .andExpect(jsonPath("$[0].id").value(100));
-    mvc.perform(get("/api/v1/emprestimos/101").header(HttpHeaders.AUTHORIZATION, authorization))
-        .andExpect(status().isForbidden());
-  }
-
   private String bearer(String email) throws Exception {
     return "Bearer " + login(email).get("accessToken").textValue();
   }
@@ -194,7 +185,7 @@ class SecurityConfigTest extends PostgresIntegrationTest {
 
   private String credentials(String email, String password) {
     return """
-        {"email":"%s","senha":"%s"}
+        {"email":"%s","password":"%s"}
         """
         .formatted(email, password);
   }

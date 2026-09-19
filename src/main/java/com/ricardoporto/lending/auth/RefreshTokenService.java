@@ -35,12 +35,12 @@ public class RefreshTokenService {
   }
 
   @Transactional
-  public AuthTokensDto issue(Usuario usuario) {
+  public AuthTokensResponse issue(Usuario usuario) {
     return tokenPair(usuario, create(usuario));
   }
 
   @Transactional(noRollbackFor = ApiException.class)
-  public AuthTokensDto rotate(String rawToken) {
+  public AuthTokensResponse rotate(String rawToken) {
     var current = requireToken(rawToken);
     var now = Instant.now();
     if (current.getRevokedAt() != null) {
@@ -89,8 +89,8 @@ public class RefreshTokenService {
         .orElseThrow(() -> unauthorized("INVALID_REFRESH_TOKEN", "The refresh token is invalid."));
   }
 
-  private AuthTokensDto tokenPair(Usuario usuario, IssuedRefreshToken refreshToken) {
-    return new AuthTokensDto(
+  private AuthTokensResponse tokenPair(Usuario usuario, IssuedRefreshToken refreshToken) {
+    return new AuthTokensResponse(
         tokenService.generateAccessToken(usuario),
         refreshToken.rawToken(),
         "Bearer",

@@ -90,9 +90,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers(
                         HttpMethod.POST,
-                        "/api/v1/exemplares/**",
-                        "/api/v1/clientes/**",
-                        "/api/v1/resources/**",
+                        "/api/v1/resources",
+                        "/api/v1/resources/*/items",
                         "/api/v1/resource-items/**",
                         "/api/v1/loans/*/approve",
                         "/api/v1/loans/*/reject",
@@ -100,18 +99,7 @@ public class SecurityConfig {
                         "/api/v1/loans/*/return")
                     .hasAnyRole("STAFF", "ADMIN")
                     .requestMatchers(
-                        HttpMethod.PATCH,
-                        "/api/v1/exemplares/**",
-                        "/api/v1/clientes/**",
-                        "/api/v1/emprestimos/**",
-                        "/api/v1/resources/**",
-                        "/api/v1/resource-items/**")
-                    .hasAnyRole("STAFF", "ADMIN")
-                    .requestMatchers(
-                        HttpMethod.DELETE,
-                        "/api/v1/exemplares/**",
-                        "/api/v1/clientes/**",
-                        "/api/v1/emprestimos/**")
+                        HttpMethod.PATCH, "/api/v1/resources/**", "/api/v1/resource-items/**")
                     .hasAnyRole("STAFF", "ADMIN")
                     .anyRequest()
                     .authenticated())

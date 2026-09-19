@@ -1,331 +1,234 @@
 # Resource Lending API
 
+[![CI](https://github.com/ricardoportoIE/resource-lending-api/actions/workflows/ci.yml/badge.svg)](https://github.com/ricardoportoIE/resource-lending-api/actions/workflows/ci.yml)
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot 3.4.4](https://img.shields.io/badge/Spring_Boot-3.4.4-6DB33F?logo=springboot&logoColor=white)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
-[![CI](https://github.com/ricardoportoIE/resource-lending-api/actions/workflows/ci.yml/badge.svg)](https://github.com/ricardoportoIE/resource-lending-api/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-28_passing-brightgreen)
-![Coverage](https://img.shields.io/badge/line_coverage-80.14%25-brightgreen)
-![Modernisation](https://img.shields.io/badge/modernisation-phase_9_complete-blue)
+![Tests](https://img.shields.io/badge/tests-22_passing-brightgreen)
+![Coverage](https://img.shields.io/badge/line_coverage-87.62%25-brightgreen)
 
-A Java and Spring Boot REST API being re-engineered into a production-oriented platform for lending organisational resources. It currently manages library-style customers, catalogue exemplars and loans while its staged roadmap expands the domain to equipment, reservations, policies, auditability and concurrency-safe workflows.
+A production-oriented REST API for lending shared organisational resources: books, laptops, rooms, tools and other individually tracked assets. It handles catalogue inventory, policy-driven loans, FIFO reservations and simultaneous claims without lending the same physical item twice.
 
-> Originally developed as a university library management project and re-engineered as a production-oriented resource lending API, with a redesigned domain, security model, transactional workflows, database migrations, automated testing and containerised delivery.
+This repository is also a modernization case study. An academic library CRUD application was incrementally rebuilt into a secure, observable and containerised Java 21 service while preserving its Git history and archiving the superseded schema without destroying data.
 
-That statement describes the target journey. Completed work and planned capabilities are deliberately separated below so the repository never presents roadmap items as shipped features.
+## Engineering highlights
 
-## Why this project
+- Explicit loan state machine instead of a generic status update.
+- Pessimistic row locking plus partial unique indexes for last-item concurrency safety.
+- FIFO reservation queue with ready windows, expiry and automatic promotion on return.
+- Short-lived JWT access tokens and opaque, hashed, rotating refresh tokens with reuse detection.
+- `STUDENT`, `STAFF` and `ADMIN` authorization at both HTTP and service boundaries.
+- Policy-driven due dates and active-loan limits by role and resource type.
+- Transactional, immutable audit events for domain transitions.
+- RFC 9457 Problem Details with stable error codes and correlation IDs.
+- Flyway-only PostgreSQL schema management with Hibernate validation.
+- Testcontainers integration and concurrency tests against PostgreSQL 17.
+- ECS-compatible JSON logs, Actuator probes and Prometheus metrics.
+- Multi-stage non-root image, health-checked Docker Compose and GitHub Actions CI.
+- JaCoCo coverage gates and Spotless formatting enforcement.
 
-Lending systems look simple until availability, authorisation and simultaneous requests meet. This project demonstrates incremental backend modernisation: secure configuration, relational consistency, explicit architecture boundaries, reproducible integration tests and, in later phases, domain state machines and concurrency control for the last available item.
-
-## Current capabilities
-
-- Versioned REST endpoints for customers, catalogue exemplars and loans.
-- Short-lived JWT access tokens plus opaque, rotating and revocable refresh tokens.
-- Persisted user registration with BCrypt hashing, duplicate-email protection and a default `STUDENT` role.
-- Role-based access control for `STUDENT`, `STAFF` and `ADMIN`, with borrower ownership checks.
-- A typed resource catalogue with independently tracked physical items and availability states.
-- Paginated catalogue queries filtered by resource type, category and item status.
-- An explicit loan state machine with dedicated request, approval, collection, return, rejection and cancellation operations.
-- Role- and resource-type loan policies, overdue blocking, active-loan limits and immutable audit events.
-- FIFO reservations with ready windows, cancellation, expiry and automatic promotion after returns.
-- Pessimistic item locking plus database uniqueness protection for concurrency-safe last-item claims.
-- ECS-compatible structured logs with a validated correlation ID propagated in responses and errors.
-- Actuator health probes and Prometheus metrics with role-protected operational endpoints.
-- Feature-oriented modular monolith under `com.ricardoporto.lending`.
-- Thin controllers backed by transactional application services.
-- Explicit DTO mappers; JPA entities do not cross the HTTP boundary.
-- RFC 9457 Problem Details for validation, not-found, conflict and internal errors.
-- PostgreSQL persistence managed by Flyway and validated by Hibernate.
-- Integration, migration, security and architecture tests against PostgreSQL 17.
-- Multi-stage, non-root container image and a health-checked Docker Compose stack.
-- GitHub Actions verification for tests, coverage gates and container image builds.
-- Reproducible Java 21 build, Maven Wrapper and automated formatting checks.
-- Runtime credentials and secrets supplied exclusively through environment variables.
-
-## Modernisation status
-
-| Phase | Status | Outcome |
-|---|---|---|
-| 0 — Audit and baseline | Complete | Legacy domain, endpoints, risks and test behaviour mapped |
-| 1 — Hygiene, security and build | Complete | Java 21 baseline, externalised secrets, reproducible build, Testcontainers and formatting gate |
-| 2 — PostgreSQL and Flyway | Complete | PostgreSQL, versioned migrations, constraints, indexes and schema validation |
-| 3 — Architecture and error contracts | Complete | Professional package, feature modules, transactional services, DTO boundaries and RFC 9457 errors |
-| 4 — Authentication and RBAC | Complete | Refresh-token lifecycle, roles, ownership and 401/403 authorization tests |
-| 5 — Catalogue and inventory | Complete | Resources, physical items, lifecycle statuses, filters and pagination |
-| 6 — Loan workflow | Complete | State transitions, due-date policies, limits, overdue checks and audit events |
-| 7 — Reservations and concurrency | Complete | FIFO queue, promotion, expiry, pessimistic locking and a concurrent race test |
-| 8 — Observability and API docs | Complete | Health probes, metrics, structured logs, correlation IDs and current OpenAPI tags |
-| 9 — Delivery and CI | Complete | Non-root image, Docker Compose, health checks, GitHub Actions and JaCoCo gates |
-| 10 — Portfolio finish | Next | Final architecture documentation, verified examples and naming cleanup |
-
-## Architecture
+## Architecture at a glance
 
 ```mermaid
 flowchart LR
-    Client[API client] --> Security[Spring Security + JWT filter]
-    Security --> Controllers[Thin REST controllers]
+    Client[API client] --> Security[JWT authentication and RBAC]
+    Security --> Controllers[REST controllers]
     Controllers --> Services[Transactional application services]
-    Services --> Mappers[Explicit response mappers]
-    Services --> Repositories[Internal Spring Data repositories]
-    Repositories --> DB[(PostgreSQL)]
+    Services --> Locks[Pessimistic item locks]
+    Services --> Repositories[Spring Data repositories]
+    Repositories --> DB[(PostgreSQL 17)]
     Flyway[Flyway migrations] --> DB
-    Controllers -. failures .-> Errors[RFC 9457 exception handler]
-    Errors --> Client
-    OpenAPI[Swagger UI / OpenAPI] --> Controllers
+    Services --> Audit[Audit events]
+    Scheduler[Reservation expiry scheduler] --> Services
+    Observability[Actuator, Prometheus and ECS logs] -. observes .-> Services
 ```
 
-```text
-com.ricardoporto.lending
-├── auth       registration, login and refresh-token lifecycle
-├── customer   current borrower model and API
-├── resource   current catalogue/exemplar model and API
-├── loan       current lending model and API
-├── user       identity persistence and registration
-└── shared
-    ├── config
-    ├── exception
-    └── security
+The code is a feature-oriented modular monolith under `com.ricardoporto.lending`. Controllers depend on application services, services own transaction boundaries, repositories remain internal and JPA entities never cross the HTTP boundary.
+
+Detailed, code-aligned diagrams are in [Architecture and domain flows](docs/architecture.md). Design trade-offs are recorded in [Architecture Decision Records](docs/adr/).
+
+## Loan lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> REQUESTED
+    REQUESTED --> APPROVED: staff approves
+    REQUESTED --> REJECTED: staff rejects
+    REQUESTED --> CANCELLED: borrower or staff cancels
+    APPROVED --> ACTIVE: item collected
+    APPROVED --> CANCELLED: borrower or staff cancels
+    ACTIVE --> OVERDUE: due date passes
+    ACTIVE --> RETURNED: item returned
+    OVERDUE --> RETURNED: item returned
 ```
 
-Controllers depend only on application services. Services own transaction boundaries and coordinate repositories. Spring Data REST was removed so repositories cannot accidentally expose entities outside the documented API. A structural test protects the controller boundary.
+Every transition has a dedicated command endpoint. Invalid transitions return HTTP `409` with a stable code instead of silently changing state.
 
-The main decisions and trade-offs are recorded in [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md), [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md), [ADR-003: Resource and ResourceItem](docs/adr/003-resource-and-resource-item.md), [ADR-004: Explicit loan workflow](docs/adr/004-explicit-loan-workflow.md) and [ADR-005: Reservations and concurrency](docs/adr/005-reservations-and-concurrency.md).
+## Run with Docker
 
-## Technology baseline
-
-| Area | Technology |
-|---|---|
-| Language | Java 21 LTS |
-| Framework | Spring Boot 3.4.4, Spring Web, Spring Data JPA |
-| Security | Spring Security, BCrypt, Auth0 Java JWT 4.4.0 |
-| Database | PostgreSQL 17, Flyway, Hibernate schema validation |
-| API documentation | springdoc-openapi 2.8.8 |
-| Testing | JUnit 5, Spring Boot Test, MockMvc, Testcontainers 2.0.5 |
-| Build and quality | Maven Wrapper 3.9.9, Maven Enforcer, Spotless 3.10.2, JaCoCo 0.8.13, GitHub Actions |
-
-## Run the tests
-
-Requirements:
-
-- Java 21 or newer;
-- Docker Desktop or another Docker-compatible engine.
-
-```bash
-./mvnw clean verify
-```
-
-On Windows:
-
-```powershell
-.\mvnw.cmd clean verify
-```
-
-No locally installed database or database credentials are required. The command starts a pinned `postgres:17.6-alpine` container, applies production migrations and test-only fixtures, runs all 28 tests, checks formatting and packages the executable JAR.
-
-## Run the API locally
-
-Create a local configuration file from the safe template:
+Requirements: Docker Desktop or another Docker-compatible engine.
 
 ```bash
 cp .env.example .env
 ```
 
-PowerShell equivalent:
+PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Replace every placeholder in `.env`. The recommended path starts the API and PostgreSQL together, waits for the database health check and persists database data in a named volume:
+Replace the three required placeholders in `.env` (`DB_USERNAME`, `DB_PASSWORD` and `JWT_SECRET`), then start the complete stack:
 
 ```bash
 docker compose up --build
 ```
 
-The runtime image is built in two stages and runs as the unprivileged `app` user. When both health checks pass, Swagger UI is available at `http://localhost:8080/swagger-ui/index.html` and health at `http://localhost:8080/actuator/health`.
+The database is started first and must pass its health check before the API starts. Flyway builds the schema automatically. The Java process runs as the unprivileged `app` user.
 
-Stop the stack with:
+| URL | Purpose | Access |
+|---|---|---|
+| `http://localhost:8080/swagger-ui/index.html` | Interactive API documentation | Public |
+| `http://localhost:8080/v3/api-docs` | OpenAPI JSON | Public |
+| `http://localhost:8080/actuator/health` | Liveness and readiness | Public |
+| `http://localhost:8080/actuator/prometheus` | Prometheus metrics | `ADMIN` |
+
+Stop the stack while retaining database data:
 
 ```bash
 docker compose down
 ```
 
-To run the API directly from Maven instead, start PostgreSQL according to `DB_URL`, then run:
+Add `--volumes` only when you intentionally want to delete the local database volume.
+
+## Run the verification suite
+
+Requirements: Java 21+ and Docker.
 
 ```bash
-./mvnw spring-boot:run
+./mvnw clean verify
 ```
 
-Swagger UI is available at `http://localhost:8080/swagger-ui/index.html`.
+PowerShell:
 
-### Environment variables
-
-| Variable | Required | Purpose |
-|---|---:|---|
-| `DB_URL` | Yes | PostgreSQL JDBC URL |
-| `DB_USERNAME` | Yes | Database user supplied by the runtime environment |
-| `DB_PASSWORD` | Yes | Database password supplied by the runtime environment |
-| `JWT_SECRET` | Yes | HMAC signing secret; use at least 32 random characters |
-| `CORS_ALLOWED_ORIGINS` | No | Comma-separated browser origins; cross-origin access is denied when empty |
-| `RESERVATION_READY_WINDOW` | No | ISO-8601 pickup window; defaults to `P2D` |
-| `RESERVATION_EXPIRY_SCAN_MS` | No | Milliseconds between expiry scans; defaults to `60000` |
-| `LOG_FORMAT` | No | Console format; defaults to ECS-compatible structured JSON |
-
-`.env` files are ignored by Git. Only `.env.example`, containing placeholders, is versioned.
-
-## Database migrations
-
-Flyway is the only source of truth for the runtime schema. The production migrations are located at:
-
-```text
-src/main/resources/db/migration/V1__initial_schema.sql
-src/main/resources/db/migration/V2__authentication_and_ownership.sql
-src/main/resources/db/migration/V3__resource_catalogue.sql
-src/main/resources/db/migration/V4__loan_workflow.sql
-src/main/resources/db/migration/V5__reservations_and_concurrency.sql
+```powershell
+.\mvnw.cmd clean verify
 ```
 
-They create the legacy-compatible domain tables and add role reference data, customer ownership and hashed refresh-token persistence with the required keys, constraints and indexes. Hibernate runs with `ddl-auto=validate`, so a mismatch fails startup rather than silently modifying the database.
+The build starts an isolated `postgres:17.6-alpine` Testcontainer, applies every production migration from an empty database, runs 22 tests, packages the executable JAR, checks formatting and enforces at least 75% line and 35% branch coverage. The HTML report is generated at `target/site/jacoco/index.html`.
 
-Synthetic accounts live in `src/test/resources/db/testdata/R__test_data.sql`. That location is enabled only by the `test` profile and is never packaged as production seed data.
+GitHub Actions repeats verification on every push and pull request to `main`, uploads the coverage report and builds the production image.
 
-## API and errors
+## API surface
 
-The generated contract and interactive documentation are available at:
+All business endpoints are versioned under `/api/v1`.
 
-```text
-GET /v3/api-docs
-GET /swagger-ui/index.html
-```
+| Area | Endpoints |
+|---|---|
+| Authentication | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` |
+| Catalogue | `GET/POST /resources`, `GET/PATCH /resources/{id}` |
+| Inventory | `POST /resources/{id}/items`, `PATCH /resource-items/{id}/status` |
+| Loans | `POST/GET /loans`, `GET /loans/{id}` |
+| Loan commands | `POST /loans/{id}/approve`, `/reject`, `/collect`, `/return`, `/cancel` |
+| Reservations | `POST /resources/{id}/reservations`, `GET /reservations`, `DELETE /reservations/{id}` |
 
-Explicit controllers use the `/api/v1` prefix. Existing Portuguese route names are retained during the bounded migration and will be replaced alongside their domain models in later phases.
+Paginated catalogue queries support `type`, `category`, `status`, `page`, `size` and `sort` parameters. The generated OpenAPI document is the source of truth for request and response schemas.
 
-Errors use `application/problem+json` and follow RFC 9457. Stable `code` values let clients react without parsing human-readable text; validation failures also include a field-level `errors` map.
+Complete, copyable authentication and workflow requests are in [cURL examples](docs/api-examples.md).
+
+## Authorization model
+
+| Capability | STUDENT | STAFF | ADMIN |
+|---|:---:|:---:|:---:|
+| Browse resources and inventory | Yes | Yes | Yes |
+| Request and read own loans | Yes | Yes | Yes |
+| Read all loans | No | Yes | Yes |
+| Approve, reject, collect or return loans | No | Yes | Yes |
+| Cancel own requested/approved loan | Yes | Yes | Yes |
+| Manage catalogue and item status | No | Yes | Yes |
+| Create, list and cancel own reservations | Yes | Yes | Yes |
+| List or cancel any reservation | No | Yes | Yes |
+| Read protected operational endpoints | No | No | Yes |
+
+Unauthenticated requests return `401`; authenticated callers without permission return `403`. Students cannot select another borrower when requesting a loan.
+
+## Error contract
+
+Failures use `application/problem+json` and RFC 9457. Clients can depend on `code` without parsing human-readable messages.
 
 ```json
 {
   "type": "https://resource-lending-api.dev/problems/resource-not-found",
   "title": "Not Found",
   "status": 404,
-  "detail": "Customer with identifier 999 was not found.",
-  "instance": "/api/v1/clientes/999",
+  "detail": "Resource with identifier 97f1... was not found.",
+  "instance": "/api/v1/resources/97f1...",
   "code": "RESOURCE_NOT_FOUND",
-  "timestamp": "2026-09-19T00:00:00Z"
+  "timestamp": "2026-09-19T00:00:00Z",
+  "correlationId": "d8b1181c-..."
 }
 ```
 
-Unexpected exceptions are logged internally and return a generic response without exposing stack traces or internal exception messages.
+Every response includes `X-Correlation-ID`. A safe client-supplied ID is preserved; otherwise the API generates a UUID and includes it in structured logs and error responses. Passwords, access tokens and refresh tokens are redacted from application object logging.
 
-### Operational endpoints
+## Technology
 
-```text
-GET /actuator/health       # public, including liveness/readiness groups
-GET /actuator/info         # ADMIN
-GET /actuator/metrics      # ADMIN
-GET /actuator/prometheus   # ADMIN
-```
+| Area | Choice |
+|---|---|
+| Language and framework | Java 21, Spring Boot 3.4.4 |
+| HTTP and persistence | Spring Web, Spring Data JPA, Hibernate validation |
+| Security | Spring Security, BCrypt, Auth0 Java JWT 4.4.0 |
+| Database | PostgreSQL 17, Flyway |
+| Documentation | springdoc-openapi 2.8.8, Swagger UI |
+| Observability | Actuator, Micrometer Prometheus, ECS logging |
+| Testing | JUnit 5, MockMvc, Testcontainers 2.0.5 |
+| Quality and delivery | Maven Wrapper 3.9.9, Enforcer, Spotless, JaCoCo, Docker, GitHub Actions |
 
-Every request receives an `X-Correlation-ID` response header. A safe client-supplied value is preserved; otherwise the API generates a UUID. The same value is placed in structured logs and Problem Details, allowing one request to be traced without logging passwords or tokens.
+## Configuration
 
-### Authentication lifecycle
+Runtime secrets are environment-only. `.env` is ignored by Git; the versioned `.env.example` contains placeholders.
 
-```text
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-POST /api/v1/auth/refresh
-POST /api/v1/auth/logout
-```
+| Variable | Required | Default / purpose |
+|---|:---:|---|
+| `DB_URL` | Yes outside Compose | PostgreSQL JDBC URL; Compose injects its internal URL |
+| `DB_USERNAME` | Yes | PostgreSQL user |
+| `DB_PASSWORD` | Yes | PostgreSQL password |
+| `JWT_SECRET` | Yes | HMAC secret with at least 32 random characters |
+| `CORS_ALLOWED_ORIGINS` | No | Empty means browser cross-origin access is denied |
+| `RESERVATION_READY_WINDOW` | No | `P2D` |
+| `RESERVATION_EXPIRY_SCAN_MS` | No | `60000` |
+| `LOG_FORMAT` | No | `ecs`; use `plain` for local human-readable logs |
+| `APP_PORT` | No | Host port `8080` in Docker Compose |
 
-Login returns a 15-minute signed JWT access token and a seven-day opaque refresh token. Only the SHA-256 hash of each refresh token is stored. Refresh atomically revokes the presented token and issues a replacement under a pessimistic database lock. Reuse of an already revoked token is treated as credential theft: every active refresh token for that user is revoked. Logout is idempotent and revokes the supplied refresh token.
+## Database evolution and modernization
 
-Because outbound e-mail is outside the current MVP, registration creates an active account immediately; the legacy fixed-token confirmation simulation was removed. A persisted verification lifecycle can be added when a real notification provider is introduced.
+Flyway is the only schema authority and Hibernate runs with `ddl-auto=validate`. Six versioned migrations introduce authentication, inventory, loan policies, audit events, reservations and concurrency constraints.
 
-### Authorization matrix
+The original `Cliente`, `Exemplar` and `Emprestimo` API was retired after the replacement domain became complete. Migration V6 moves its tables into a dedicated `legacy` schema rather than dropping them, preserving historical data while keeping the active `public` schema and OpenAPI contract focused on resources, items, loans and reservations.
 
-| Operation | STUDENT | STAFF | ADMIN |
-|---|---:|---:|---:|
-| Browse the catalogue | Yes | Yes | Yes |
-| Read own customer profile and loans | Yes | Yes | Yes |
-| Read all customers and loans | No | Yes | Yes |
-| Request a loan for own customer profile | Yes | Yes | Yes |
-| Create or modify customer records | No | Yes | Yes |
-| Create or modify catalogue records | No | Yes | Yes |
-| Modify or delete loans | No | Yes | Yes |
+| Modernization stage | Result |
+|---|---|
+| Baseline and hygiene | Reproducible Java 21 build, externalised secrets and PostgreSQL integration tests |
+| Persistence and architecture | Flyway migrations, constraints, feature modules, DTO boundaries and Problem Details |
+| Identity and authorization | JWT/refresh lifecycle, role-based access and ownership checks |
+| Domain redesign | Typed inventory, policy-based state machine and audit trail |
+| Concurrency | FIFO reservations, expiry, row locks and database uniqueness backstops |
+| Operations and delivery | OpenAPI, structured logs, metrics, Docker Compose, coverage gates and CI |
+| Portfolio finish | Legacy API retirement, faithful diagrams and verified examples |
 
-URL rules reject disallowed requests before controller execution, while service-level checks protect catalogue mutations and ownership-sensitive operations. Unauthenticated requests return `401`; authenticated callers without permission return `403`, both as Problem Details.
+The project now lives in the professional GitHub account [`ricardoportoIE`](https://github.com/ricardoportoIE/resource-lending-api); the repository history retains the original authorship and the complete modernization journey.
 
-### Loan workflow
+## Further reading
 
-```text
-POST /api/v1/loans
-GET  /api/v1/loans
-GET  /api/v1/loans/{id}
-POST /api/v1/loans/{id}/approve
-POST /api/v1/loans/{id}/reject
-POST /api/v1/loans/{id}/collect
-POST /api/v1/loans/{id}/return
-POST /api/v1/loans/{id}/cancel
-```
+- [Architecture, domain model and concurrency flows](docs/architecture.md)
+- [Verified cURL workflow](docs/api-examples.md)
+- [Recruiter, CV and GitHub summary](docs/portfolio-summary.md)
+- [ADR-001: Feature-oriented modular monolith](docs/adr/001-feature-modular-monolith.md)
+- [ADR-002: Access and refresh-token lifecycle](docs/adr/002-access-and-refresh-token-lifecycle.md)
+- [ADR-003: Resource and ResourceItem](docs/adr/003-resource-and-resource-item.md)
+- [ADR-004: Explicit loan workflow](docs/adr/004-explicit-loan-workflow.md)
+- [ADR-005: Reservations and concurrency](docs/adr/005-reservations-and-concurrency.md)
 
-The API exposes commands for each valid transition instead of a generic status patch. `STUDENT` users request and inspect their own loans; `STAFF` and `ADMIN` can operate the approval and physical hand-off workflow. Policy rows determine active-loan limits and due dates for every role/resource-type combination.
+## Scope boundaries
 
-### Reservations
-
-```text
-POST   /api/v1/resources/{resourceId}/reservations
-GET    /api/v1/reservations
-DELETE /api/v1/reservations/{id}
-```
-
-Reservations are ordered FIFO. An available item makes the head reservation immediately `READY`; otherwise it remains `WAITING`. Returns, cancellations and expirations promote the next user. A ready reservation owns a specific item for the configured pickup window.
-
-## Build quality
-
-`mvn verify` enforces the minimum Java and Maven versions, compiles, runs the 28-test PostgreSQL integration suite, packages the application, checks formatting and generates a JaCoCo report. The build fails below 75% line coverage or 35% branch coverage. The current report records 80.14% line and 42.45% branch coverage.
-
-GitHub Actions repeats that verification on every push and pull request to `main`, uploads the HTML coverage report and builds the production container image. Formatting can also be checked or applied independently:
-
-```bash
-./mvnw spotless:check
-./mvnw spotless:apply
-```
-
-The executable artifact is produced at `target/resource-lending-api-0.0.1-SNAPSHOT.jar`; the local HTML coverage report is at `target/site/jacoco/index.html`.
-
-## Security posture
-
-Completed through Phase 4:
-
-- secrets and database credentials are externalised;
-- production seed accounts were removed;
-- integration secrets are generated at runtime;
-- repositories are internal and cannot be exposed automatically;
-- registration normalises e-mail, hashes passwords and rejects duplicates;
-- access and refresh tokens have separate, configurable lifetimes;
-- refresh tokens support rotation, server-side revocation and reuse detection;
-- `STUDENT`, `STAFF` and `ADMIN` permissions are enforced at HTTP and service boundaries;
-- students can only retrieve or create loans connected to their own customer profile;
-- authentication and authorization failures correctly distinguish HTTP 401 from 403;
-- browser origins are allow-listed through environment configuration;
-- API failures do not leak stack traces or internal exception details.
-
-Known limitations remain visible:
-
-- outbound e-mail verification is intentionally deferred until a real notification integration exists;
-- access tokens are self-contained and remain valid until their short expiry after logout;
-- the current customer, exemplar and loan models remain transitional until the domain phases.
-
-This baseline supports continued engineering work but is not presented as production-ready.
-
-## Roadmap highlights
-
-1. Introduce the resource catalogue and individually lendable resource items.
-2. Model explicit loan and reservation state machines with policy-driven due dates.
-3. Protect the last available item with transactional locking and a reproducible concurrency test.
-4. Add audit events, correlation IDs and Actuator health checks.
-5. Deliver Docker Compose, GitHub Actions, JaCoCo and verified API examples.
-
-## Repository history
-
-The Git history and original authorship are preserved. The academic implementation remains part of the engineering story: each modernisation phase starts from measured behaviour, introduces a bounded change and verifies the result before moving forward.
+The current MVP intentionally excludes e-mail notifications, distributed scheduling, rate limiting, cloud infrastructure and a frontend. Those are extension points, not features presented as complete. Access tokens remain valid until their short expiry after logout; refresh tokens are revoked server-side immediately.

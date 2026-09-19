@@ -7,16 +7,17 @@
 
 The inherited application used an academic base package and split closely related domain types across many small packages. REST controllers coordinated persistence, subtype construction, mapping and error handling directly. Spring Data REST was also present, allowing repository endpoints to bypass the explicit API boundary.
 
-The project needs clear ownership boundaries now, without prematurely introducing distributed services or replacing the legacy domain scheduled for later phases.
+The project needs clear ownership boundaries without prematurely introducing distributed services.
 
 ## Decision
 
 Use a modular monolith rooted at `com.ricardoporto.lending` and group code by business feature:
 
-- `auth` for login and email-confirmation use cases;
-- `customer` for the current borrower model;
-- `resource` for the current lendable exemplar model;
-- `loan` for lending records;
+- `auth` for login and refresh-token use cases;
+- `resource` for catalogue resources and physical inventory;
+- `loan` for the policy-driven lending workflow;
+- `reservation` for queueing, pickup windows and promotion;
+- `audit` for immutable domain transition records;
 - `user` for identity persistence and registration;
 - `shared` for cross-cutting configuration, security and error handling.
 
@@ -28,6 +29,6 @@ API failures use RFC 9457 `ProblemDetail` responses with a stable application co
 
 - Feature ownership and transaction boundaries are visible in the source tree.
 - Controllers can no longer call repositories directly; a structural test protects this rule.
-- Existing `/api/v1` routes remain available while internals can evolve independently.
+- Versioned `/api/v1` routes remain stable while internals can evolve independently.
 - The application remains one deployable unit and one database, avoiding distributed-system overhead.
-- Some legacy Portuguese class and route names remain until their domain replacements are introduced in the catalogue and loan workflow phases.
+- Superseded academic controllers and entities were removed after their replacement modules became complete; their tables remain preserved in PostgreSQL schema `legacy`.

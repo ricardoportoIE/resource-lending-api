@@ -17,9 +17,9 @@ public class LoginService {
     this.refreshTokenService = refreshTokenService;
   }
 
-  public AuthTokensDto login(UsuarioAutenticacaoDTO request) {
+  public AuthTokensResponse login(LoginRequest request) {
     var normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
-    var credentials = new UsernamePasswordAuthenticationToken(normalizedEmail, request.senha());
+    var credentials = new UsernamePasswordAuthenticationToken(normalizedEmail, request.password());
     var authentication = authenticationManager.authenticate(credentials);
     return refreshTokenService.issue((Usuario) authentication.getPrincipal());
   }

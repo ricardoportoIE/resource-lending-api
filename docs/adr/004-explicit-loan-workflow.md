@@ -15,4 +15,4 @@ Policies are persisted per borrower role and resource type. Requesting checks ac
 
 ## Consequences
 
-Clients cannot bypass workflow rules with arbitrary patches, and policy changes remain data-driven. The legacy `Emprestimo` API is retained temporarily for migration compatibility but is no longer the target domain. Locking and database-level race protection are deliberately completed in Phase 7.
+Clients cannot bypass workflow rules with arbitrary patches, and policy changes remain data-driven. The legacy `Emprestimo` API was retired after migration. Pessimistic item locking and partial unique indexes now provide application- and database-level race protection.

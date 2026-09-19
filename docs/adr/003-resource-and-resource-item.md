@@ -11,7 +11,7 @@ The legacy `Exemplar` hierarchy combines bibliographic description and the singl
 
 `Resource` represents the shared catalogue description and classification. `ResourceItem` represents one independently tracked lendable unit with a unique asset tag, availability status and optimistic-lock version. A resource may own any number of items.
 
-The new API uses UUID identifiers, typed resource and item statuses, paginated catalogue queries, and filters for type, category and availability. The legacy endpoints remain temporarily available while the loan domain migrates in Phase 6.
+The API uses UUID identifiers, typed resource and item statuses, paginated catalogue queries, and filters for type, category and availability. The superseded exemplar endpoints were retired after the loan domain migration; their historical tables are preserved in PostgreSQL schema `legacy`.
 
 ## Consequences
 
